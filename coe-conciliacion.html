@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D4F66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Caja COE">
+<title>Caja COE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --ink:#18232C; --muted:#5B6873; --paper:#EEF2F2; --panel:#FFFFFF; --line:#D5DDDF;
+  --iris:#1D4F66; --iris-soft:#DCE9EF;
+  --ok:#2C7549; --ok-soft:#E0F0E6; --warn:#9A6210; --warn-soft:#F7EBD6;
+  --bad:#B42318; --bad-soft:#FBE4E1; --idle:#7A8791;
+  --r:10px;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0;min-height:100%}
+body{background:var(--paper);color:var(--ink);font:17px/1.45 "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+.num,.money{font-variant-numeric:tabular-nums}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--iris);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px}
+header .marca{font-weight:700;font-size:19px;flex:1;display:flex;align-items:center;gap:10px}
+header .ojo{width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center}
+header .ojo::after{content:"";width:9px;height:9px;border-radius:50%;background:#fff}
+header button{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}
+main{max-width:720px;margin:0 auto;padding:18px 16px 110px}
+h1{font-size:26px;line-height:1.2;margin:4px 0 6px}
+h2{font-size:20px;margin:26px 0 10px}
+p{margin:0 0 12px}
+.sub{color:var(--muted)}
+.bloque{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:12px 0}
+label{display:block;font-weight:700;margin:14px 0 6px}
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],input[type=tel],select,textarea{
+  width:100%;padding:12px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:18px}
+textarea{min-height:90px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid #6FA8C2;outline-offset:1px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;padding:14px 18px;font-weight:700;font-size:17px;cursor:pointer;background:var(--iris);color:#fff;text-decoration:none}
+.btn.full{width:100%}
+.btn.sec{background:var(--iris-soft);color:var(--iris)}
+.btn.peligro{background:var(--bad)}
+.btn.chico{padding:8px 12px;font-size:15px}
+.btn[disabled]{opacity:.5;cursor:default}
+.fila{display:flex;gap:10px;align-items:center}
+.fila>*{flex:1}
+.acciones{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--paper) 30%);padding:18px 16px calc(14px + env(safe-area-inset-bottom,0px));z-index:4}
+.acciones .in{max-width:720px;margin:0 auto;display:flex;gap:10px}
+.acciones .in .btn{flex:1}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:14px}
+.check input{width:22px;height:22px;margin-top:2px;flex:none}
+.aviso{border-left:4px solid var(--iris);background:var(--iris-soft);padding:12px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.aviso.mal{border-color:var(--bad);background:var(--bad-soft)}
+.aviso.ojo{border-color:var(--warn);background:var(--warn-soft)}
+
+/* Cajas en inicio */
+.caja{display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:10px 0}
+.caja .info{flex:1}
+.caja .nombre{font-weight:700;font-size:19px}
+.caja .estado{color:var(--muted);font-size:15px}
+.puntito{width:14px;height:14px;border-radius:50%;flex:none;background:var(--line)}
+.puntito.abierto{background:var(--iris)}
+.etq{display:inline-block;font-size:13px;font-weight:700;border-radius:6px;padding:2px 8px;background:var(--iris-soft);color:var(--iris)}
+
+/* Contador de efectivo: la pieza protagonista */
+.visor{position:sticky;top:calc(env(safe-area-inset-top,0px) + 54px);z-index:3;background:var(--ink);color:#fff;border-radius:var(--r);padding:14px 18px;margin:14px 0;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.visor .l{font-size:15px;opacity:.75}
+.visor .total{font-size:40px;font-weight:700;letter-spacing:.5px;font-variant-numeric:tabular-nums;line-height:1}
+.denoms{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.denom{display:grid;grid-template-columns:86px 1fr 104px;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line)}
+.denom:first-child{border-top:0}
+.denom .valor{font-weight:700;font-size:18px}
+.denom .valor small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.denom .ctrl{display:flex;align-items:center;gap:6px}
+.denom .ctrl button{width:40px;height:40px;border-radius:8px;border:1.5px solid var(--line);background:#fff;font-size:22px;font-weight:700;cursor:pointer;flex:none}
+.denom .ctrl input{text-align:center;padding:8px 4px;font-size:18px;min-width:0}
+.denom .sub{text-align:right;font-size:16px}
+.grupo{background:var(--paper);font-size:13px;font-weight:700;color:var(--muted);padding:6px 12px;border-top:1px solid var(--line)}
+.grupo:first-child{border-top:0}
+
+/* Segmentos */
+.seg{display:flex;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:transparent;padding:10px;border-radius:7px;font-weight:700;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--iris);color:#fff}
+
+/* Evidencias */
+.evid{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.evid:first-of-type{border-top:0}
+.evid .t{flex:1}
+.evid .t b{display:block}
+.evid .t span{font-size:14px;color:var(--muted)}
+.marca-ok{color:var(--ok);font-weight:700}
+.marca-falta{color:var(--bad);font-weight:700}
+input[type=file]{display:none}
+
+/* Montos */
+.monto{display:grid;grid-template-columns:1fr 150px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.monto:first-of-type{border-top:0}
+.monto input{text-align:right}
+
+/* Resultado */
+.resultado{border-radius:var(--r);padding:26px 20px;text-align:center;margin:10px 0}
+.resultado .grande{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.resultado.cuadrado{background:var(--ok-soft);color:var(--ok)}
+.resultado.faltante{background:var(--bad-soft);color:var(--bad)}
+.resultado.sobrante,.resultado.revisar{background:var(--warn-soft);color:var(--warn)}
+table.desglose{width:100%;border-collapse:collapse;margin-top:8px}
+table.desglose td{padding:7px 0;border-top:1px solid var(--line)}
+table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+
+/* Panel */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:6px 0 10px;-webkit-overflow-scrolling:touch}
+.tabs button{flex:none;border:1.5px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;font-weight:700;color:var(--muted);cursor:pointer}
+.tabs button[aria-current=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.dia{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:10px 0}
+.dia .cab{font-weight:700;margin-bottom:8px}
+.dia .turnos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chip{border-radius:8px;padding:10px;text-align:left;border:0;cursor:pointer;width:100%}
+.chip b{display:block;font-size:14px}
+.chip span{font-size:15px;font-variant-numeric:tabular-nums}
+.chip.cuadrado{background:var(--ok-soft);color:var(--ok)}
+.chip.faltante{background:var(--bad-soft);color:var(--bad)}
+.chip.sobrante,.chip.revisar{background:var(--warn-soft);color:var(--warn)}
+.chip.abierto{background:var(--iris-soft);color:var(--iris)}
+.chip.vacio{background:var(--paper);color:var(--idle);cursor:default}
+.chip.tarde{background:var(--bad-soft);color:var(--bad);cursor:default}
+.lista .item{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
+.lista .item:first-child{border-top:0}
+.lista .item .t{flex:1;min-width:0}
+.lista .item .t b{display:block}
+.lista .item .t span{font-size:14px;color:var(--muted)}
+.lista .item .v{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.v.faltante{color:var(--bad)} .v.sobrante,.v.revisar{color:var(--warn)} .v.cuadrado{color:var(--ok)} .v.abierto{color:var(--iris)}
+.vacio-msg{color:var(--muted);text-align:center;padding:26px 10px}
+
+/* Modal y avisos */
+.fondo-modal{position:fixed;inset:0;background:rgba(24,35,44,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:var(--panel);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px))}
+@media (min-width:640px){.fondo-modal{align-items:center}.modal{border-radius:16px}}
+.modal h3{margin:0 0 6px;font-size:21px}
+.pin{letter-spacing:12px;text-align:center;font-size:30px !important}
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;z-index:30;max-width:90vw;display:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#toast.mal{background:var(--bad)}
+.cargando{opacity:.6;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.visor .total{transition:color .2s}}
+</style>
+</head>
+<body>
+<header id="cab" hidden>
+  <div class="marca"><span class="ojo" aria-hidden="true"></span><span>Caja COE</span></div>
+  <button id="btnPanel" hidden>Panel</button>
+  <button id="btnSalir">Salir</button>
+</header>
+<main id="app"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// ===================== Configuración =====================
+const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
+const BUCKET = 'con-evidencias';
+const MINUTOS_INACTIVIDAD = 10;
+
+const BILLETES = ['1000','500','200','100','50','20'];
+const MONEDAS  = ['10','5','2','1','0.5'];
+const EVID = {
+  eoptics:      {n:'Corte de eOptics', d:'PDF exportado de eOptics', acepta:'application/pdf,image/*'},
+  depositador:  {n:'Ticket del depositador', d:'Foto del ticket completo', acepta:'image/*'},
+  transferencia:{n:'Transferencias', d:'Captura de cada transferencia', acepta:'image/*,application/pdf'},
+  voucher:      {n:'Voucher de terminal', d:'Foto del cierre de lote', acepta:'image/*'}
+};
+const ESTADOS = {cuadrado:'Cuadró', faltante:'Faltante', sobrante:'Sobrante', revisar:'Revisar', abierto:'Abierto'};
+
+// ===================== Utilidades =====================
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'});
+const money = n => fmt.format(Number(n)||0);
+const signo = n => (Number(n)>0?'+':'') + money(n);
+const hora = iso => iso ? new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+const fechaCorta = f => { if(!f) return ''; const [y,m,d]=String(f).slice(0,10).split('-'); return `${d}/${m}/${y}`; };
+const hoyISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const menosDias = (iso,n) => { const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()-n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const totalConteo = c => Object.entries(c).reduce((s,[k,v]) => s + Number(k)*(Number(v)||0), 0);
+
+let toastT;
+function toast(msg, mal=false){
+  const t=$('#toast'); t.textContent=msg; t.className=mal?'mal':''; t.style.display='block';
+  clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', mal?5000:2800);
+}
+
+let sb;
+const S = { token: sessionStorage.getItem('con_token'), estado:null };
+
+async function rpc(fn, args={}){
+  const {data, error} = await sb.rpc(fn, {p_token:S.token, ...args});
+  if(error){
+    const m = error.message || 'Error de conexión.';
+    if(m.startsWith('SESION')){ salir(true); throw new Error('Tu sesión terminó. Vuelve a entrar.'); }
+    throw new Error(m);
+  }
+  return data;
+}
+
+async function ocupado(btn, fn){
+  const txt = btn?.innerHTML; if(btn){btn.disabled=true; btn.innerHTML='Un momento…';}
+  try { return await fn(); }
+  catch(e){ toast(e.message, true); }
+  finally { if(btn && document.body.contains(btn)){ btn.disabled=false; btn.innerHTML=txt; } }
+}
+
+function acciones(html){ return `<div class="acciones"><div class="in">${html}</div></div>`; }
+
+// ===================== Inactividad =====================
+let inact;
+function reiniciarInactividad(){
+  clearTimeout(inact);
+  if(S.token) inact = setTimeout(()=>{ salir(true); toast('Se cerró la sesión por inactividad.'); }, MINUTOS_INACTIVIDAD*60000);
+}
+['click','keydown','touchstart'].forEach(e => document.addEventListener(e, reiniciarInactividad, {passive:true}));
+
+// ===================== Modales =====================
+function modal(html){
+  const f = document.createElement('div'); f.className='fondo-modal';
+  f.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(f);
+  f.addEventListener('click', e => { if(e.target===f) f.remove(); });
+  return f;
+}
+
+function pedirPin(titulo, detalle=''){
+  return new Promise(res => {
+    const m = modal(`<h3>${esc(titulo)}</h3>
+      <p class="sub">${detalle || 'Escribe tu PIN para firmar.'}</p>
+      <input class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" id="pinIn" aria-label="PIN">
+      <div class="fila" style="margin-top:16px">
+        <button class="btn sec" id="pinNo">Cancelar</button>
+        <button class="btn" id="pinSi">Firmar</button>
+      </div>`);
+    const i = m.querySelector('#pinIn'); setTimeout(()=>i.focus(), 50);
+    const fin = v => { m.remove(); res(v); };
+    m.querySelector('#pinNo').onclick = () => fin(null);
+    m.querySelector('#pinSi').onclick = () => i.value.length>=4 ? fin(i.value) : toast('El PIN tiene de 4 a 6 números.', true);
+    i.onkeydown = e => { if(e.key==='Enter') m.querySelector('#pinSi').click(); };
+  });
+}
+
+// ===================== Contador de efectivo =====================
+function contadorHTML(id, titulo){
+  const fila = k => `<div class="denom">
+      <div class="valor">$${k==='0.5'?'0.50':Number(k).toLocaleString('es-MX')}</div>
+      <div class="ctrl">
+        <button type="button" data-k="${k}" data-d="-1" aria-label="Quitar uno de $${k}">−</button>
+        <input type="number" inputmode="numeric" min="0" step="1" data-k="${k}" value="" placeholder="0" aria-label="Cantidad de $${k}">
+        <button type="button" data-k="${k}" data-d="1" aria-label="Agregar uno de $${k}">+</button>
+      </div>
+      <div class="sub money" data-s="${k}">${money(0)}</div>
+    </div>`;
+  return `<div id="${id}">
+    <div class="visor"><span class="l">${esc(titulo)}</span><span class="total" data-total>${money(0)}</span></div>
+    <div class="denoms">
+      <div class="grupo">Billetes</div>${BILLETES.map(fila).join('')}
+      <div class="grupo">Monedas</div>${MONEDAS.map(fila).join('')}
+    </div></div>`;
+}
+function montarContador(id, conteo){
+  const el = document.getElementById(id);
+  const pintar = () => {
+    Object.keys(conteo).forEach(k => { if(!conteo[k]) delete conteo[k]; });
+    [...BILLETES, ...MONEDAS].forEach(k => {
+      el.querySelector(`input[data-k="${k}"]`).value = conteo[k] || '';
+      el.querySelector(`[data-s="${k}"]`).textContent = money(Number(k)*(conteo[k]||0));
+    });
+    el.querySelector('[data-total]').textContent = money(totalConteo(conteo));
+  };
+  el.querySelectorAll('button[data-k]').forEach(b => b.onclick = () => {
+    const k=b.dataset.k; conteo[k] = Math.max(0,(conteo[k]||0) + Number(b.dataset.d)); pintar();
+  });
+  el.querySelectorAll('input[data-k]').forEach(i => i.oninput = () => {
+    const v = Math.max(0, Math.floor(Number(i.value)||0)); conteo[i.dataset.k]=v;
+    el.querySelector(`[data-s="${i.dataset.k}"]`).textContent = money(Number(i.dataset.k)*v);
+    el.querySelector('[data-total]').textContent = money(totalConteo(conteo));
+  });
+  pintar();
+}
+const conteoJSON = c => { const o={}; Object.entries(c).forEach(([k,v])=>{ if(v>0) o[k]=v; }); return o; };
+
+// ===================== Archivos =====================
+async function comprimir(file){
+  if(!file.type.startsWith('image/') || file.size < 900000) return file;
+  try{
+    const img = await createImageBitmap(file);
+    const esc2 = Math.min(1, 2200/Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width=Math.round(img.width*esc2); c.height=Math.round(img.height*esc2);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const blob = await new Promise(r => c.toBlob(r,'image/jpeg',0.85));
+    return blob ? new File([blob], file.name.replace(/\.\w+$/,'')+'.jpg', {type:'image/jpeg'}) : file;
+  }catch{ return file; }
+}
+async function subirArchivo(turnoId, tipo, file){
+  const f = await comprimir(file);
+  const ext = (f.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const path = `${turnoId}/${tipo}-${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+  const {error} = await sb.storage.from(BUCKET).upload(path, f, {contentType:f.type||'application/octet-stream'});
+  if(error) throw new Error('No se pudo subir el archivo: ' + error.message);
+  return path;
+}
+async function abrirArchivo(path){
+  const {data, error} = await sb.storage.from(BUCKET).createSignedUrl(path, 600);
+  if(error) return toast('No se pudo abrir el archivo.', true);
+  window.open(data.signedUrl, '_blank');
+}
+
+// ===================== Sesión =====================
+function vistaLogin(){
+  $('#cab').hidden = true;
+  app.innerHTML = `
+    <div style="max-width:420px;margin:8vh auto 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <span class="ojo" style="width:40px;height:40px;border-radius:50%;border:5px solid var(--iris);display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:50%;background:var(--iris)"></span></span>
+        <h1 style="margin:0">Caja COE</h1>
+      </div>
+      <p class="sub">Apertura y cierre de turno</p>
+      <div class="bloque">
+        <label for="lu">Usuario</label>
+        <input id="lu" type="text" autocomplete="username" autocapitalize="none">
+        <label for="lp">Contraseña</label>
+        <input id="lp" type="password" autocomplete="current-password">
+        <button class="btn full" id="lb" style="margin-top:18px">Entrar</button>
+      </div>
+    </div>`;
+  const entrar = () => ocupado($('#lb'), async () => {
+    const {data, error} = await sb.rpc('con_login', {p_usuario:$('#lu').value, p_password:$('#lp').value});
+    if(error) throw new Error(error.message);
+    S.token = data.token; sessionStorage.setItem('con_token', data.token); reiniciarInactividad();
+    data.debe_cambiar ? vistaCredenciales() : cargar();
+  });
+  $('#lb').onclick = entrar;
+  $('#lp').onkeydown = e => { if(e.key==='Enter') entrar(); };
+}
+
+function vistaCredenciales(){
+  $('#cab').hidden = false; $('#btnPanel').hidden = true;
+  app.innerHTML = `
+    <h1>Crea tu contraseña y tu PIN</h1>
+    <p class="sub">Tu contraseña es para entrar. Tu PIN de 4 a 6 números es tu firma en cada apertura, cierre y gasto. No los compartas.</p>
+    <div class="bloque">
+      <label for="ca">Contraseña temporal</label><input id="ca" type="password" autocomplete="current-password">
+      <label for="cn">Contraseña nueva (mínimo 8)</label><input id="cn" type="password" autocomplete="new-password">
+      <label for="cc">Repite la contraseña nueva</label><input id="cc" type="password" autocomplete="new-password">
+      <label for="pn">PIN nuevo</label><input id="pn" class="pin" type="password" inputmode="numeric" maxlength="6">
+      <label for="pc">Repite el PIN</label><input id="pc" class="pin" type="password" inputmode="numeric" maxlength="6">
+    </div>
+    <div class="bloque">
+      <b>Reglamento de caja</b>
+      <p class="sub" style="margin-top:6px">Soy responsable del efectivo, fondo y comprobantes de la caja durante mi turno. Debo abrir y cerrar cada turno en esta app con mi PIN y subir los reportes completos. Los faltantes que la Dirección autorice podrán descontarse de mi salario conforme al artículo 110 de la Ley Federal del Trabajo.</p>
+      <label class="check"><input type="checkbox" id="acepto"> Leí y acepto el reglamento de caja</label>
+    </div>
+    ${acciones('<button class="btn" id="cg">Guardar y continuar</button>')}`;
+  $('#cg').onclick = () => ocupado($('#cg'), async () => {
+    if($('#cn').value !== $('#cc').value) throw new Error('Las contraseñas nuevas no coinciden.');
+    if($('#pn').value !== $('#pc').value) throw new Error('Los PIN no coinciden.');
+    await rpc('con_credenciales', {p_pass_actual:$('#ca').value, p_pass_nueva:$('#cn').value, p_pin_nuevo:$('#pn').value, p_acepto:$('#acepto').checked});
+    toast('Listo. Ya puedes usar la caja.'); cargar();
+  });
+}
+
+async function salir(silencioso){
+  const tok = S.token; S.token=null; S.estado=null; sessionStorage.removeItem('con_token'); clearTimeout(inact);
+  if(tok && !silencioso) try{ await sb.rpc('con_logout',{p_token:tok}); }catch{}
+  document.querySelectorAll('.fondo-modal').forEach(m=>m.remove());
+  vistaLogin();
+}
+
+async function cargar(){
+  try{ S.estado = await rpc('con_estado'); }
+  catch(e){ if(S.token) toast(e.message,true); return; }
+  $('#cab').hidden = false;
+  $('#btnPanel').hidden = !['admin','supervisor'].includes(S.estado.usuario.rol);
+  vistaInicio();
+}
+
+// ===================== Inicio =====================
+function turnoSugerido(caja){
+  const cierre = caja.horarios?.matutino?.cierre || '14:30';
+  return (caja.hora_local || '00:00') < cierre ? 'matutino' : 'vespertino';
+}
+
+function vistaInicio(){
+  $('#btnPanel').dataset.en='0'; $('#btnPanel').textContent='Panel';
+  const u = S.estado.usuario, cajas = S.estado.cajas;
+  const nombre = u.nombre.split(' ').filter(p=>!/^dr[a]?\.?$/i.test(p))[0] || u.nombre;
+  app.innerHTML = `
+    <h1>Hola, ${esc(nombre)}</h1>
+    <p class="sub">Elige la caja en la que vas a trabajar.</p>
+    ${cajas.length ? cajas.map(c => {
+      const a = c.abierto;
+      const est = a ? `Turno ${a.turno} abierto por ${esc(a.usuario)} desde las ${hora(a.abierto_en)}` : 'Sin turno abierto';
+      const boton = !a ? `<button class="btn chico" data-abrir="${c.id}">Abrir turno</button>`
+                  : a.mio ? `<button class="btn chico" data-seguir="${a.id}">Continuar</button>` : '';
+      return `<div class="caja">
+        <span class="puntito ${a?'abierto':''}" aria-hidden="true"></span>
+        <div class="info"><div class="nombre">${esc(c.nombre)} ${c.acceso==='cobertura'?'<span class="etq">Cobertura</span>':''}</div>
+          <div class="estado">${esc(c.sucursal)}. ${est}</div></div>
+        ${boton}</div>`;
+    }).join('') : `<div class="vacio-msg">No tienes cajas asignadas. Pide al administrador que te asigne una sucursal o una cobertura.</div>`}`;
+  app.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => vistaAbrir(cajas.find(c=>c.id===b.dataset.abrir)));
+  app.querySelectorAll('[data-seguir]').forEach(b => b.onclick = () => vistaTurno(b.dataset.seguir));
+}
+
+// ===================== Abrir turno =====================
+function vistaAbrir(caja){
+  const st = { turno: turnoSugerido(caja), conteo:{}, nota:null };
+  const pintar = () => {
+    app.innerHTML = `
+      <button class="btn sec chico" id="volver">Volver</button>
+      <h1 style="margin-top:14px">Abrir turno</h1>
+      <p class="sub">${esc(caja.nombre)}, ${esc(caja.sucursal)}</p>
+      <div class="seg" role="group" aria-label="Turno">
+        <button aria-pressed="${st.turno==='matutino'}" data-t="matutino">Matutino</button>
+        <button aria-pressed="${st.turno==='vespertino'}" data-t="vespertino">Vespertino</button>
+      </div>
+      <h2>Cuenta el fondo con el que abres</h2>
+      <p class="sub">Anota cuántas piezas hay de cada denominación.</p>
+      ${contadorHTML('cnt','Fondo inicial')}
+      <div id="notaBox"></div>
+      ${acciones('<button class="btn" id="firmar">Firmar apertura</button>')}`;
+    montarContador('cnt', st.conteo);
+    $('#volver').onclick = vistaInicio;
+    app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { st.turno=b.dataset.t; app.querySelectorAll('[data-t]').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
+    $('#firmar').onclick = firmar;
+  };
+  const firmar = () => ocupado($('#firmar'), async () => {
+    const nota = $('#nota')?.value ?? null;
+    if(st.nota !== null && !nota.trim()) throw new Error('Explica la diferencia del fondo para continuar.');
+    const total = totalConteo(st.conteo);
+    const pin = await pedirPin('Firmar apertura', `Fondo inicial de <b>${money(total)}</b>, turno ${st.turno}.`);
+    if(!pin) return;
+    const r = await rpc('con_abrir_turno', {p_caja:caja.id, p_turno:st.turno, p_fondo:conteoJSON(st.conteo), p_nota:nota, p_pin:pin});
+    if(r.ok){ toast('Turno abierto.'); await cargar(); return vistaTurno(r.turno_id); }
+    if(r.code==='FONDO'){
+      st.nota = '';
+      $('#notaBox').innerHTML = `<div class="aviso mal"><b>El fondo no coincide con el último cierre.</b><br>
+        El turno anterior cerró con ${money(r.previo)} y tú contaste ${money(r.total)}. Vuelve a contar; si la diferencia es real, explícala. Se avisará a la Dirección.</div>
+        <label for="nota">Explicación</label><textarea id="nota"></textarea>`;
+      $('#nota').focus();
+      return;
+    }
+    throw new Error(r.error || 'No se pudo abrir el turno.');
+  });
+  pintar();
+}
+
+// ===================== Turno en curso =====================
+async function vistaTurno(id){
+  let t;
+  try{ t = await rpc('con_turno', {p_turno:id}); } catch(e){ return toast(e.message,true); }
+  if(t.estado !== 'abierto') return vistaInicio();
+  const cuenta = tipo => t.evidencias.filter(e=>e.tipo===tipo).length;
+  app.innerHTML = `
+    <button class="btn sec chico" id="volver">Inicio</button>
+    <h1 style="margin-top:14px">${esc(t.caja)}</h1>
+    <p class="sub">Turno ${esc(t.turno)} abierto a las ${hora(t.abierto_en)}. Fondo inicial ${money(t.fondo_inicial_total)}.</p>
+
+    <h2>Comprobantes</h2>
+    <div class="bloque">
+      ${Object.entries(EVID).map(([k,v]) => `
+        <div class="evid">
+          <div class="t"><b>${v.n}${k==='eoptics'?' (obligatorio)':''}</b>
+            <span>${cuenta(k) ? `<span class="marca-ok">${cuenta(k)} subido${cuenta(k)>1?'s':''}</span>` : (k==='eoptics'?'<span class="marca-falta">Falta</span>':v.d)}</span></div>
+          <label class="btn chico sec" style="margin:0">Subir<input type="file" accept="${v.acepta}" data-tipo="${k}" ${v.acepta==='image/*'?'capture="environment"':''}></label>
+        </div>`).join('')}
+    </div>
+
+    <h2>Gastos de caja chica</h2>
+    <div class="bloque">
+      ${t.gastos.length ? `<div class="lista">${t.gastos.map(g=>`<div class="item" ${g.archivo?`data-arch="${esc(g.archivo)}"`:''}><div class="t"><b>${esc(g.concepto)}</b><span>${hora(g.creado)}${g.archivo?', con comprobante':''}</span></div><div class="v">${money(g.monto)}</div></div>`).join('')}</div>`
+        : '<p class="sub" style="margin:0">Sin gastos en este turno.</p>'}
+      <button class="btn sec full" id="gasto" style="margin-top:12px">Registrar gasto</button>
+    </div>
+    ${acciones('<button class="btn" id="cerrar">Cerrar turno</button>')}`;
+  $('#volver').onclick = cargar;
+  $('#gasto').onclick = () => modalGasto(t.id);
+  $('#cerrar').onclick = () => cuenta('eoptics') ? vistaCerrar(t) : toast('Primero sube el PDF del corte de eOptics.', true);
+  app.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch));
+  app.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
+    const f = inp.files[0]; if(!f) return;
+    const lbl = inp.parentElement; lbl.classList.add('cargando'); lbl.firstChild.textContent='Subiendo…';
+    try{ const p = await subirArchivo(t.id, inp.dataset.tipo, f);
+         await rpc('con_registrar_evidencia', {p_turno:t.id, p_tipo:inp.dataset.tipo, p_archivo:p});
+         toast('Comprobante subido.'); vistaTurno(t.id); }
+    catch(e){ toast(e.message,true); lbl.classList.remove('cargando'); lbl.firstChild.textContent='Subir'; }
+  });
+}
+
+function modalGasto(turnoId){
+  const m = modal(`<h3>Registrar gasto</h3>
+    <p class="sub">Todo gasto sin comprobante cuenta como faltante.</p>
+    <label for="gm">Monto</label><input id="gm" type="number" inputmode="decimal" min="0" step="0.01">
+    <label for="gc">En qué se gastó</label><input id="gc" type="text">
+    <label class="btn sec full" style="margin-top:14px"><span id="gfl">Foto del comprobante</span><input id="gf" type="file" accept="image/*" capture="environment"></label>
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="gno">Cancelar</button><button class="btn" id="gsi">Firmar gasto</button></div>`);
+  m.querySelector('#gf').onchange = e => m.querySelector('#gfl').textContent = e.target.files[0] ? 'Foto lista' : 'Foto del comprobante';
+  m.querySelector('#gno').onclick = () => m.remove();
+  m.querySelector('#gsi').onclick = () => ocupado(m.querySelector('#gsi'), async () => {
+    const monto = Number(m.querySelector('#gm').value), concepto = m.querySelector('#gc').value.trim();
+    if(!(monto>0)) throw new Error('Escribe el monto del gasto.');
+    if(!concepto) throw new Error('Escribe en qué se gastó.');
+    const pin = await pedirPin('Firmar gasto', `${money(monto)} en ${esc(concepto)}.`); if(!pin) return;
+    const f = m.querySelector('#gf').files[0];
+    const path = f ? await subirArchivo(turnoId, 'gasto', f) : null;
+    const r = await rpc('con_registrar_gasto', {p_turno:turnoId, p_monto:monto, p_concepto:concepto, p_archivo:path, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    m.remove(); toast('Gasto registrado.'); vistaTurno(turnoId);
+  });
+}
+
+// ===================== Cerrar turno =====================
+function vistaCerrar(t){
+  const st = { paso:1, conteo:{}, montos:{}, just:null, dif:null };
+  const campo = (k, n) => `<div class="monto"><label for="m_${k}" style="margin:0;font-weight:400">${n}</label>
+      <input id="m_${k}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${st.montos[k] ?? ''}"></div>`;
+  const leerMontos = () => ['pos_efectivo','pos_tarjeta','pos_transferencia','real_depositado','real_voucher','real_banco']
+      .forEach(k => { const v=$('#m_'+k)?.value; if(v!==undefined) st.montos[k] = v===''? '' : Number(v); });
+
+  const pintar = () => {
+    if(st.paso===1){
+      app.innerHTML = `
+        <button class="btn sec chico" id="volver">Volver al turno</button>
+        <h1 style="margin-top:14px">Cerrar turno</h1>
+        <p class="sub">Paso 1 de 2. Cuenta el efectivo que queda en caja como fondo para el siguiente turno. No incluyas lo que ya depositaste.</p>
+        ${contadorHTML('cnt','Fondo final')}
+        ${acciones('<button class="btn" id="sig">Siguiente</button>')}`;
+      montarContador('cnt', st.conteo);
+      $('#volver').onclick = () => vistaTurno(t.id);
+      $('#sig').onclick = () => { st.paso=2; pintar(); window.scrollTo(0,0); };
+    } else if(st.paso===2){
+      app.innerHTML = `
+        <button class="btn sec chico" id="atras">Volver al conteo</button>
+        <h1 style="margin-top:14px">Cerrar turno</h1>
+        <p class="sub">Paso 2 de 2. Copia los totales de tus comprobantes.</p>
+        <h2>Según el corte de eOptics</h2>
+        <div class="bloque">${campo('pos_efectivo','Cobrado en efectivo')}${campo('pos_tarjeta','Cobrado con tarjeta')}${campo('pos_transferencia','Cobrado por transferencia')}</div>
+        <h2>Lo que realmente entró</h2>
+        <div class="bloque">${campo('real_depositado','Depositado en el depositador')}${campo('real_voucher','Total del voucher de terminal')}${campo('real_banco','Transferencias recibidas en banco')}</div>
+        <div class="aviso">Fondo final contado: <b>${money(totalConteo(st.conteo))}</b>. Gastos del turno: <b>${money(t.gastos_total)}</b>.</div>
+        ${acciones('<button class="btn" id="firmar">Firmar cierre</button>')}`;
+      $('#atras').onclick = () => { leerMontos(); st.paso=1; pintar(); };
+      $('#firmar').onclick = firmar;
+    } else {
+      const d = st.dif;
+      const titulo = d.estado==='faltante' ? `Faltante de ${money(Math.abs(d.dif_total))}` : d.estado==='sobrante' ? `Sobrante de ${money(d.dif_total)}` : 'Las formas de pago no cuadran';
+      app.innerHTML = `
+        <h1>Cerrar turno</h1>
+        <div class="resultado ${d.estado}"><div>La caja no cuadró</div><div class="grande">${titulo}</div></div>
+        <div class="bloque"><table class="desglose">
+          <tr><td>Efectivo</td><td>${signo(d.dif_efectivo)}</td></tr>
+          <tr><td>Tarjeta</td><td>${signo(d.dif_tarjeta)}</td></tr>
+          <tr><td>Transferencia</td><td>${signo(d.dif_transferencia)}</td></tr>
+        </table></div>
+        <p class="sub">El conteo ya quedó registrado. Explica qué pasó; tu explicación y el monto le llegan a la Dirección.</p>
+        <label for="just">Explicación</label><textarea id="just"></textarea>
+        ${acciones('<button class="btn peligro" id="firmar">Firmar cierre con diferencia</button>')}`;
+      $('#firmar').onclick = firmar;
+    }
+  };
+
+  const firmar = () => ocupado($('#firmar'), async () => {
+    if(st.paso===2) leerMontos();
+    if(st.paso===3){ st.just = $('#just').value.trim(); if(!st.just) throw new Error('Escribe la explicación de la diferencia.'); }
+    const pin = await pedirPin('Firmar cierre', st.paso===3 ? 'Confirmas el cierre con diferencia.' : `Fondo final de <b>${money(totalConteo(st.conteo))}</b>.`);
+    if(!pin) return;
+    const montos = {}; Object.entries(st.montos).forEach(([k,v]) => montos[k] = v===''?0:v);
+    const r = await rpc('con_cerrar_turno', {p_turno:t.id, p_fondo_final:conteoJSON(st.conteo), p_montos:montos, p_justificacion:st.just, p_pin:pin});
+    if(r.ok){ await cargar(); return vistaResultado(r, t); }
+    if(r.code==='JUSTIFICAR'){ st.dif=r; st.paso=3; pintar(); window.scrollTo(0,0); return; }
+    throw new Error(r.error || 'No se pudo cerrar el turno.');
+  });
+  pintar();
+}
+
+function vistaResultado(r, t){
+  const txt = {cuadrado:'La caja cuadró', faltante:`Faltante de ${money(Math.abs(r.dif_total))}`, sobrante:`Sobrante de ${money(r.dif_total)}`, revisar:'Cerrado con diferencias'}[r.estado];
+  app.innerHTML = `
+    <h1>Turno cerrado</h1>
+    <p class="sub">${esc(t.caja)}, turno ${esc(t.turno)}.</p>
+    <div class="resultado ${r.estado}"><div class="grande">${txt}</div>
+      ${r.estado!=='cuadrado' ? '<div style="margin-top:8px">Se avisó a la Dirección.</div>' : ''}</div>
+    <div class="bloque"><table class="desglose">
+      <tr><td>Fondo que queda en caja</td><td>${money(r.fondo_final)}</td></tr>
+      <tr><td>Diferencia en efectivo</td><td>${signo(r.dif_efectivo)}</td></tr>
+      <tr><td>Diferencia en tarjeta</td><td>${signo(r.dif_tarjeta)}</td></tr>
+      <tr><td>Diferencia en transferencia</td><td>${signo(r.dif_transferencia)}</td></tr>
+    </table></div>
+    ${acciones('<button class="btn" id="ini">Volver al inicio</button>')}`;
+  $('#ini').onclick = vistaInicio;
+}
+
+// ===================== Panel =====================
+let tabPanel = 'hoy';
+function vistaPanel(tab){
+  tabPanel = tab || tabPanel;
+  $('#btnPanel').dataset.en='1'; $('#btnPanel').textContent='Caja';
+  const esAdmin = S.estado.usuario.rol==='admin';
+  const tabs = [['hoy','Hoy'],['historial','Historial'],['alertas','Alertas'],['coberturas','Coberturas']];
+  if(esAdmin) tabs.push(['usuarios','Usuarios'],['ajustes','Ajustes']);
+  app.innerHTML = `<h1>Panel de control</h1>
+    <nav class="tabs">${tabs.map(([k,n])=>`<button data-tab="${k}" aria-current="${k===tabPanel}">${n}</button>`).join('')}</nav>
+    <div id="pc"><p class="sub">Cargando…</p></div>`;
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => vistaPanel(b.dataset.tab));
+  ({hoy:panelHoy, historial:panelHistorial, alertas:panelAlertas, coberturas:panelCoberturas, usuarios:panelUsuarios, ajustes:panelAjustes})[tabPanel]()
+    .catch(e => { $('#pc').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`; });
+}
+
+async function panelHoy(){
+  const hoy = hoyISO();
+  const d = await rpc('con_admin_resumen', {p_desde:hoy, p_hasta:hoy});
+  const chip = (caja, tn) => {
+    const ts = d.turnos.filter(x => x.caja_id===caja.id && x.turno===tn);
+    if(!ts.length){
+      const h = caja.horarios?.[tn]; let tarde=false;
+      if(h){ const [hh,mm]=h.cierre.split(':').map(Number); const lim=hh*60+mm+h.gracia; const [ah,am]=caja.hora_local.split(':').map(Number); tarde = ah*60+am >= lim; }
+      return `<div class="chip ${tarde?'tarde':'vacio'}"><b>${tn==='matutino'?'Matutino':'Vespertino'}</b><span>${tarde?'Sin registro':'Pendiente'}</span></div>`;
+    }
+    return ts.map(x => `<button class="chip ${x.estado}" data-det="${x.id}"><b>${tn==='matutino'?'Matutino':'Vespertino'} · ${esc(x.usuario.split(' ')[0])}</b>
+      <span>${x.estado==='abierto' ? 'Abierto '+hora(x.abierto_en) : x.estado==='cuadrado' ? 'Cuadró' : ESTADOS[x.estado]+' '+money(Math.abs(x.dif_total))}</span></button>`).join('');
+  };
+  const pend = d.turnos.filter(x => ['faltante','sobrante','revisar'].includes(x.estado));
+  $('#pc').innerHTML = `
+    ${pend.length ? `<div class="aviso mal"><b>${pend.length} ${pend.length>1?'turnos':'turno'} con diferencia hoy.</b> Toca cada uno para ver comprobantes y explicación.</div>` : ''}
+    ${d.cajas.map(c => `<div class="dia"><div class="cab">${esc(c.nombre)} <span class="sub" style="font-weight:400">${esc(c.sucursal)}</span></div>
+      <div class="turnos"><div>${chip(c,'matutino')}</div><div>${chip(c,'vespertino')}</div></div></div>`).join('') || '<div class="vacio-msg">No hay cajas configuradas.</div>'}`;
+  $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+}
+
+async function panelHistorial(){
+  const hasta = hoyISO(), desde = menosDias(hasta, 15);
+  $('#pc').innerHTML = `<div class="fila"><div><label for="hd">Desde</label><input id="hd" type="date" value="${desde}"></div><div><label for="hh">Hasta</label><input id="hh" type="date" value="${hasta}"></div></div>
+    <label for="he">Mostrar</label><select id="he"><option value="">Todos</option><option value="dif">Solo con diferencia</option><option value="abierto">Abiertos</option></select>
+    <div class="bloque lista" id="hl"><p class="sub">Cargando…</p></div>`;
+  const cargarH = async () => {
+    const d = await rpc('con_admin_resumen', {p_desde:$('#hd').value, p_hasta:$('#hh').value});
+    const f = $('#he').value;
+    const ts = d.turnos.filter(x => !f || (f==='dif' ? ['faltante','sobrante','revisar'].includes(x.estado) : x.estado===f));
+    const falt = ts.filter(x=>x.estado==='faltante').reduce((s,x)=>s+Math.abs(Number(x.dif_total)),0);
+    $('#hl').innerHTML = (falt ? `<div class="aviso mal" style="margin-top:0">Faltantes en el periodo: <b>${money(falt)}</b></div>` : '') +
+      (ts.map(x => `<div class="item" data-det="${x.id}"><div class="t"><b>${fechaCorta(x.fecha)} · ${esc(x.caja)} · ${x.turno==='matutino'?'Mat.':'Vesp.'}</b>
+        <span>${esc(x.usuario)}${x.es_cobertura?' (cobertura)':''}, ${esc(x.sucursal)}</span></div>
+        <div class="v ${x.estado}">${x.estado==='cuadrado'?'Cuadró':x.estado==='abierto'?'Abierto':money(x.dif_total)}</div></div>`).join('') || '<div class="vacio-msg">No hay turnos en esas fechas.</div>');
+    $('#hl').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+  };
+  ['hd','hh','he'].forEach(i => $('#'+i).onchange = () => cargarH().catch(e=>toast(e.message,true)));
+  await cargarH();
+}
+
+async function detalleTurno(id){
+  let t; try{ t = await rpc('con_turno', {p_turno:id}); }catch(e){ return toast(e.message,true); }
+  const fila = (n,v) => `<tr><td>${n}</td><td>${v}</td></tr>`;
+  const m = modal(`
+    <h3>${esc(t.caja)}, ${esc(t.turno)} ${fechaCorta(t.fecha)}</h3>
+    <p class="sub">${esc(t.usuario)}${t.es_cobertura?' (cobertura)':''}. Abrió ${hora(t.abierto_en)}${t.cerrado_en?', cerró '+hora(t.cerrado_en):''}.</p>
+    ${t.estado!=='abierto' ? `<div class="resultado ${t.estado}" style="padding:14px"><div class="grande" style="font-size:30px">${ESTADOS[t.estado]} ${t.estado==='cuadrado'?'':money(Math.abs(t.dif_total))}</div></div>` : '<div class="aviso">Turno abierto.</div>'}
+    ${t.justificacion ? `<div class="aviso ojo"><b>Explicación:</b> ${esc(t.justificacion)}</div>` : ''}
+    ${t.nota_apertura ? `<div class="aviso ojo"><b>Nota de apertura:</b> ${esc(t.nota_apertura)} (cierre anterior ${money(t.fondo_previo)})</div>` : ''}
+    <table class="desglose">
+      ${fila('Fondo inicial', money(t.fondo_inicial_total))}
+      ${t.estado!=='abierto' ? [
+        fila('Efectivo según eOptics', money(t.pos_efectivo)), fila('Depositado', money(t.real_depositado)),
+        fila('Gastos de caja chica', money(t.gastos_total)), fila('Fondo final', money(t.fondo_final_total)),
+        fila('Tarjeta eOptics / voucher', `${money(t.pos_tarjeta)} / ${money(t.real_voucher)}`),
+        fila('Transferencia eOptics / banco', `${money(t.pos_transferencia)} / ${money(t.real_banco)}`),
+        fila('<b>Diferencia efectivo</b>', `<b>${signo(t.dif_efectivo)}</b>`),
+        fila('<b>Diferencia tarjeta</b>', `<b>${signo(t.dif_tarjeta)}</b>`),
+        fila('<b>Diferencia transferencia</b>', `<b>${signo(t.dif_transferencia)}</b>`)].join('') : ''}
+    </table>
+    <h3 style="margin-top:18px;font-size:17px">Comprobantes</h3>
+    <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado}))].map(e =>
+      `<div class="item" data-arch="${esc(e.a)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}</span></div><div class="v">Ver</div></div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
+    ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
+    <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
+  m.querySelector('#dc').onclick = () => m.remove();
+  m.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch));
+}
+
+async function panelAlertas(){
+  const a = await rpc('con_admin_alertas', {p_limite:60});
+  const nom = {diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro'};
+  $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
+      <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
+      <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
+  $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+}
+
+async function panelCoberturas(){
+  const [cat, us, cbs] = await Promise.all([rpc('con_admin_catalogo'), rpc('con_admin_usuarios'), rpc('con_admin_coberturas')]);
+  const cajas = cat.sucursales.flatMap(s => s.cajas.filter(c=>c.activa).map(c => ({...c, suc:s.nombre})));
+  $('#pc').innerHTML = `
+    <div class="bloque">
+      <p class="sub" style="margin:0">Asigna quién cubre una caja en un día. La persona entra con su propia cuenta y el corte queda a su nombre.</p>
+      <label for="cc">Caja</label><select id="cc">${cajas.map(c=>`<option value="${c.id}">${esc(c.nombre)}, ${esc(c.suc)}</option>`).join('')}</select>
+      <label for="cu">Quién cubre</label><select id="cu">${us.filter(u=>u.activo).map(u=>`<option value="${u.id}">${esc(u.nombre)}</option>`).join('')}</select>
+      <label for="cf">Fecha</label><input id="cf" type="date" value="${hoyISO()}">
+      <label for="cn">Nota (a quién cubre)</label><input id="cn" type="text">
+      <button class="btn full" id="cg" style="margin-top:16px">Asignar cobertura</button>
+    </div>
+    <h2>Coberturas recientes y próximas</h2>
+    <div class="bloque lista">${cbs.map(c=>`<div class="item" style="cursor:default"><div class="t"><b>${fechaCorta(c.fecha)} · ${esc(c.caja)}</b><span>${esc(c.usuario)}${c.nota?'. '+esc(c.nota):''}</span></div></div>`).join('') || '<div class="vacio-msg">Sin coberturas.</div>'}</div>`;
+  $('#cg').onclick = () => ocupado($('#cg'), async () => {
+    await rpc('con_admin_cobertura', {p_caja:$('#cc').value, p_fecha:$('#cf').value, p_usuario:$('#cu').value, p_nota:$('#cn').value});
+    toast('Cobertura asignada.'); vistaPanel('coberturas');
+  });
+}
+
+async function panelUsuarios(){
+  const [us, cat] = await Promise.all([rpc('con_admin_usuarios'), rpc('con_admin_catalogo')]);
+  const rolN = {admin:'Administrador', supervisor:'Supervisor', cajero:'Cajero'};
+  $('#pc').innerHTML = `<button class="btn full" id="nu">Agregar usuario</button>
+    <div class="bloque lista">${us.map(u => `<div class="item" data-u="${u.id}"><div class="t"><b>${esc(u.nombre)}${u.activo?'':' (inactivo)'}</b>
+      <span>${esc(u.usuario)}, ${rolN[u.rol]}${u.bloqueado?', PIN bloqueado':''}${u.debe_cambiar?', aún no crea su contraseña':''}</span></div>
+      <div class="v" style="font-weight:400">Editar</div></div>`).join('')}</div>`;
+  $('#nu').onclick = () => formUsuario(null, cat);
+  $('#pc').querySelectorAll('[data-u]').forEach(x => x.onclick = () => formUsuario(us.find(u=>u.id===x.dataset.u), cat));
+}
+
+function formUsuario(u, cat){
+  const nuevo = !u; u = u || {rol:'cajero', activo:true, sucursales:[]};
+  const m = modal(`<h3>${nuevo?'Nuevo usuario':'Editar usuario'}</h3>
+    <label for="un">Nombre completo</label><input id="un" type="text" value="${esc(u.nombre)}">
+    <label for="uu">Usuario para entrar</label><input id="uu" type="text" autocapitalize="none" value="${esc(u.usuario)}">
+    <label for="ut">WhatsApp (10 dígitos)</label><input id="ut" type="tel" value="${esc(u.telefono)}">
+    <label for="ur">Rol</label><select id="ur">${['cajero','supervisor','admin'].map(r=>`<option value="${r}" ${u.rol===r?'selected':''}>${{cajero:'Cajero',supervisor:'Supervisor',admin:'Administrador'}[r]}</option>`).join('')}</select>
+    <label>Sucursales</label>${cat.sucursales.map(s=>`<label class="check" style="margin-top:6px"><input type="checkbox" data-s="${s.id}" ${u.sucursales.includes(s.id)?'checked':''}> ${esc(s.nombre)}</label>`).join('')}
+    <label for="up">${nuevo?'Contraseña temporal':'Nueva contraseña temporal (opcional)'}</label><input id="up" type="text" autocomplete="off">
+    <label for="ui">${nuevo?'PIN temporal':'Nuevo PIN temporal (opcional)'}</label><input id="ui" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
+    ${nuevo?'':`<label class="check"><input type="checkbox" id="ua" ${u.activo?'checked':''}> Activo</label>`}
+    ${u.bloqueado?'<button class="btn sec full" id="ub" style="margin-top:12px">Desbloquear PIN</button>':''}
+    <p class="sub" style="margin-top:12px">Al entrar por primera vez, la persona crea su propia contraseña y PIN y acepta el reglamento.</p>
+    <div class="fila" style="margin-top:8px"><button class="btn sec" id="uno">Cancelar</button><button class="btn" id="usi">Guardar</button></div>`);
+  m.querySelector('#uno').onclick = () => m.remove();
+  if(u.bloqueado) m.querySelector('#ub').onclick = () => ocupado(m.querySelector('#ub'), async () => { await rpc('con_admin_desbloquear',{p_id:u.id}); toast('PIN desbloqueado.'); m.remove(); vistaPanel('usuarios'); });
+  m.querySelector('#usi').onclick = () => ocupado(m.querySelector('#usi'), async () => {
+    const d = { id:u.id||'', nombre:m.querySelector('#un').value, usuario:m.querySelector('#uu').value, telefono:m.querySelector('#ut').value,
+      rol:m.querySelector('#ur').value, password:m.querySelector('#up').value, pin:m.querySelector('#ui').value,
+      activo: nuevo ? true : m.querySelector('#ua').checked,
+      sucursales:[...m.querySelectorAll('[data-s]:checked')].map(x=>x.dataset.s) };
+    await rpc('con_admin_guardar_usuario', {p_d:d});
+    toast('Usuario guardado.'); m.remove(); vistaPanel('usuarios');
+  });
+}
+
+async function panelAjustes(){
+  const cat = await rpc('con_admin_catalogo'); const c = cat.config;
+  const cfg = (k,n,ayuda='',tipo='text') => `<label for="k_${k}">${n}</label><input id="k_${k}" type="${tipo}" value="${esc(c[k])}">${ayuda?`<p class="sub" style="font-size:14px;margin:4px 0 0">${ayuda}</p>`:''}`;
+  $('#pc').innerHTML = `
+    ${cat.sucursales.map(s => `<div class="bloque" data-suc="${s.id}">
+      <label style="margin-top:0">Sucursal</label><input type="text" data-f="nombre" value="${esc(s.nombre)}">
+      <label>Tolerancia de diferencia ($)</label><input type="number" inputmode="decimal" data-f="tolerancia" value="${s.tolerancia}">
+      <div class="fila"><div><label>Cierre matutino</label><input type="time" data-f="matutino_cierre" value="${s.horarios?.matutino?.cierre||'14:30'}"></div>
+        <div><label>Margen (min)</label><input type="number" data-f="matutino_gracia" value="${s.horarios?.matutino?.gracia??120}"></div></div>
+      <div class="fila"><div><label>Cierre vespertino</label><input type="time" data-f="vespertino_cierre" value="${s.horarios?.vespertino?.cierre||'18:00'}"></div>
+        <div><label>Margen (min)</label><input type="number" data-f="vespertino_gracia" value="${s.horarios?.vespertino?.gracia??60}"></div></div>
+      <label>Cajas</label>
+      ${s.cajas.map(cj=>`<div class="fila" style="margin:6px 0"><input type="text" data-caja="${cj.id}" value="${esc(cj.nombre)}"><label class="check" style="flex:none;margin:0"><input type="checkbox" data-cact="${cj.id}" ${cj.activa?'checked':''}> Activa</label></div>`).join('')}
+      <div class="fila" style="margin:6px 0"><input type="text" data-nueva placeholder="Nueva caja"></div>
+      <button class="btn sec full" data-gsuc style="margin-top:10px">Guardar sucursal</button>
+    </div>`).join('')}
+    <button class="btn sec full" id="nsuc">Agregar sucursal</button>
+    <h2>Avisos</h2>
+    <div class="bloque">
+      ${cfg('wa_alertas','WhatsApp para alertas','Separados por coma. El cajero del turno también recibe la suya.')}
+      ${cfg('wa_resumen','WhatsApp para el resumen diario','Director, Subdirector y Contadora. Se usará en la Fase 3.')}
+      ${cfg('email_alertas','Correo para alertas')}
+      ${cfg('webhook_url','Dirección del COE Bot','Cuando el bot tenga el número de Meta activo, pega aquí su dirección para mandar WhatsApp.')}
+      ${cfg('emailjs_service','EmailJS service ID')}
+      ${cfg('emailjs_template','EmailJS template ID','La plantilla debe usar {{to_email}}, {{subject}} y {{message}}.')}
+      ${cfg('emailjs_public','EmailJS public key')}
+      ${cfg('emailjs_private','EmailJS private key','','password')}
+      ${cfg('dias_laborables','Días laborables','1 = lunes … 7 = domingo. Ejemplo: 1,2,3,4,5,6')}
+      <button class="btn full" id="gcfg" style="margin-top:16px">Guardar avisos</button>
+    </div>`;
+  $('#pc').querySelectorAll('[data-suc]').forEach(b => b.querySelector('[data-gsuc]').onclick = e => ocupado(e.target, async () => {
+    const d = {id:b.dataset.suc}; b.querySelectorAll('[data-f]').forEach(i => d[i.dataset.f] = i.value);
+    await rpc('con_admin_guardar_sucursal', {p_d:d});
+    for(const i of b.querySelectorAll('[data-caja]'))
+      await rpc('con_admin_guardar_caja', {p_d:{id:i.dataset.caja, nombre:i.value, activa:b.querySelector(`[data-cact="${i.dataset.caja}"]`).checked}});
+    const n = b.querySelector('[data-nueva]').value.trim();
+    if(n) await rpc('con_admin_guardar_caja', {p_d:{sucursal_id:b.dataset.suc, nombre:n}});
+    toast('Sucursal guardada.'); vistaPanel('ajustes');
+  }));
+  $('#nsuc').onclick = () => { const n = prompt('Nombre de la nueva sucursal'); if(n) rpc('con_admin_guardar_sucursal',{p_d:{nombre:n}}).then(()=>{toast('Sucursal creada. Agrega sus cajas.'); vistaPanel('ajustes');}).catch(e=>toast(e.message,true)); };
+  $('#gcfg').onclick = () => ocupado($('#gcfg'), async () => {
+    const d = {}; ['wa_alertas','wa_resumen','email_alertas','webhook_url','emailjs_service','emailjs_template','emailjs_public','emailjs_private','dias_laborables'].forEach(k => d[k] = $('#k_'+k).value.trim());
+    await rpc('con_admin_guardar_config', {p_d:d}); toast('Avisos guardados.');
+  });
+}
+
+// ===================== Arranque =====================
+$('#btnSalir').onclick = () => salir(false);
+$('#btnPanel').onclick = () => $('#btnPanel').dataset.en==='1' ? vistaInicio() : vistaPanel('hoy');
+
+(function init(){
+  if(SUPABASE_ANON.startsWith('PEGA')){
+    app.innerHTML = `<div class="aviso mal" style="margin-top:30px"><b>Falta configurar la llave de Supabase.</b><br>Abre este archivo, busca <code>SUPABASE_ANON</code> y pega la llave “anon public” de tu proyecto.</div>`;
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:false}});
+  if(S.token){ reiniciarInactividad(); cargar(); } else vistaLogin();
+})();
+</script>
+</body>
+</html>
