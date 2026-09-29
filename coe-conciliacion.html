@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.0 · 28 sep 2026 · Fase 1 (usuarios, fondos, cierre, candado de hora) -->
+<!-- COE Conciliación · v2.1 · 29 sep 2026 · Arreglo de cambio de contraseña -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -147,7 +147,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 @media (min-width:640px){.fondo-modal{align-items:center}.modal{border-radius:16px}}
 .modal h3{margin:0 0 6px;font-size:21px}
 .pin{letter-spacing:12px;text-align:center;font-size:30px !important}
-#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;z-index:30;max-width:90vw;display:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#toast{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;z-index:30;max-width:90vw;display:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #toast.mal{background:var(--bad)}
 .cargando{opacity:.6;pointer-events:none}
 @media (prefers-reduced-motion:no-preference){.visor .total{transition:color .2s}}
@@ -164,7 +164,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.0 · 28 sep 2026';
+const VERSION = 'v2.1 · 29 sep 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -196,7 +196,7 @@ const totalConteo = c => Object.entries(c).reduce((s,[k,v]) => s + Number(k)*(Nu
 let toastT;
 function toast(msg, mal=false){
   const t=$('#toast'); t.textContent=msg; t.className=mal?'mal':''; t.style.display='block';
-  clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', mal?5000:2800);
+  clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', mal?8000:3000);
 }
 
 let sb;
@@ -333,46 +333,67 @@ function vistaLogin(){
       <p class="sub">Apertura y cierre de turno · ${VERSION}</p>
       <div class="bloque">
         <label for="lu">Usuario</label>
-        <input id="lu" type="text" autocomplete="username" autocapitalize="none">
+        <input id="lu" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
         <label for="lp">Contraseña</label>
-        <input id="lp" type="password" autocomplete="current-password">
+        <input id="lp" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <label class="check"><input type="checkbox" id="lver"> Mostrar contraseña</label>
+        <div id="lmsg"></div>
         <button class="btn full" id="lb" style="margin-top:18px">Entrar</button>
       </div>
     </div>`;
   const entrar = () => ocupado($('#lb'), async () => {
-    const {data, error} = await sb.rpc('con_login', {p_usuario:$('#lu').value, p_password:$('#lp').value});
+    const {data, error} = await sb.rpc('con_login', {p_usuario:$('#lu').value.trim(), p_password:$('#lp').value.trim()});
     if(error) throw new Error(error.message);
     S.token = data.token; sessionStorage.setItem('con_token', data.token); reiniciarInactividad();
     data.debe_cambiar ? vistaCredenciales() : cargar();
   });
   $('#lb').onclick = entrar;
   $('#lp').onkeydown = e => { if(e.key==='Enter') entrar(); };
+  $('#lver').onchange = e => $('#lp').type = e.target.checked ? 'text' : 'password';
+  if(S.aviso){ $('#lmsg').innerHTML = `<div class="aviso">${S.aviso}</div>`; S.aviso=null; }
 }
 
 function vistaCredenciales(){
   $('#cab').hidden = false; $('#btnPanel').hidden = true;
+  const campo = (id, txt, pin) => `<label for="${id}">${txt}</label><input id="${id}" type="password" ${pin?'class="pin" inputmode="numeric" maxlength="6"':''} autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">`;
   app.innerHTML = `
     <h1>Crea tu contraseña y tu PIN</h1>
-    <p class="sub">Tu contraseña es para entrar. Tu PIN de 4 a 6 números es tu firma en cada apertura, cierre y gasto. No los compartas.</p>
+    <p class="sub">Tu contraseña es para entrar. Tu PIN de 4 a 6 números es tu firma en cada apertura, cierre y gasto. No los compartas y anótalos antes de guardar.</p>
     <div class="bloque">
-      <label for="ca">Contraseña temporal</label><input id="ca" type="password" autocomplete="current-password">
-      <label for="cn">Contraseña nueva (mínimo 8)</label><input id="cn" type="password" autocomplete="new-password">
-      <label for="cc">Repite la contraseña nueva</label><input id="cc" type="password" autocomplete="new-password">
-      <label for="pn">PIN nuevo</label><input id="pn" class="pin" type="password" inputmode="numeric" maxlength="6">
-      <label for="pc">Repite el PIN</label><input id="pc" class="pin" type="password" inputmode="numeric" maxlength="6">
+      ${campo('ca','Contraseña temporal (la que te dieron)')}
+      ${campo('cn','Contraseña nueva (mínimo 8 letras o números)')}
+      ${campo('cc','Repite la contraseña nueva')}
+      ${campo('pn','PIN nuevo (4 a 6 números)',true)}
+      ${campo('pc','Repite el PIN',true)}
+      <label class="check"><input type="checkbox" id="cver"> Mostrar lo que escribo</label>
     </div>
     <div class="bloque">
       <b>Reglamento de caja</b>
       <p class="sub" style="margin-top:6px">Soy responsable del efectivo, fondo y comprobantes de la caja durante mi turno. Debo abrir y cerrar cada turno en esta app con mi PIN y subir los reportes completos. Los faltantes que la Dirección autorice podrán descontarse de mi salario conforme al artículo 110 de la Ley Federal del Trabajo.</p>
       <label class="check"><input type="checkbox" id="acepto"> Leí y acepto el reglamento de caja</label>
     </div>
+    <div id="cerr"></div>
     ${acciones('<button class="btn" id="cg">Guardar y continuar</button>')}`;
-  $('#cg').onclick = () => ocupado($('#cg'), async () => {
-    if($('#cn').value !== $('#cc').value) throw new Error('Las contraseñas nuevas no coinciden.');
-    if($('#pn').value !== $('#pc').value) throw new Error('Los PIN no coinciden.');
-    await rpc('con_credenciales', {p_pass_actual:$('#ca').value, p_pass_nueva:$('#cn').value, p_pin_nuevo:$('#pn').value, p_acepto:$('#acepto').checked});
-    toast('Listo. Ya puedes usar la caja.'); cargar();
-  });
+  $('#cver').onchange = e => ['ca','cn','cc','pn','pc'].forEach(i => $('#'+i).type = e.target.checked ? 'text' : 'password');
+  const error = m => { $('#cerr').innerHTML = `<div class="aviso mal"><b>No se guardó.</b> ${esc(m)}</div>`; $('#cerr').scrollIntoView({behavior:'smooth', block:'center'}); };
+  $('#cg').onclick = async () => {
+    const v = id => $('#'+id).value.trim();
+    $('#cerr').innerHTML = '';
+    if(!v('ca')) return error('Escribe la contraseña temporal.');
+    if(v('cn').length < 8) return error('La contraseña nueva debe tener al menos 8 caracteres.');
+    if(v('cn') !== v('cc')) return error('Las dos contraseñas nuevas no son iguales.');
+    if(v('cn') === v('ca')) return error('La contraseña nueva debe ser distinta a la temporal.');
+    if(!/^[0-9]{4,6}$/.test(v('pn'))) return error('El PIN debe tener de 4 a 6 números.');
+    if(/^(\d)\1+$/.test(v('pn')) || ['1234','12345','123456','4321','654321'].includes(v('pn'))) return error('Elige un PIN menos obvio (no 1111 ni 1234).');
+    if(v('pn') !== v('pc')) return error('Los dos PIN no son iguales.');
+    if(!$('#acepto').checked) return error('Marca la casilla del reglamento de caja.');
+    const b = $('#cg'); b.disabled = true; b.textContent = 'Guardando…';
+    try{
+      await rpc('con_credenciales', {p_pass_actual:v('ca'), p_pass_nueva:v('cn'), p_pin_nuevo:v('pn'), p_acepto:true});
+      S.aviso = '<b>Contraseña guardada.</b> Entra ahora con tu contraseña nueva para confirmar que quedó bien.';
+      salir(false);
+    }catch(e){ error(e.message); b.disabled = false; b.textContent = 'Guardar y continuar'; }
+  };
 }
 
 async function salir(silencioso){
