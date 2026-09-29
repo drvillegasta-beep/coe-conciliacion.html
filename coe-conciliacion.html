@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- COE Conciliación · v2.0 · 28 sep 2026 · Fase 1 (usuarios, fondos, cierre, candado de hora) -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,6 +28,7 @@ body{background:var(--paper);color:var(--ink);font:17px/1.45 "Atkinson Hyperlegi
 button,input,select,textarea{font:inherit;color:inherit}
 .num,.money{font-variant-numeric:tabular-nums}
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--iris);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px}
+header .ver{font-size:12px;font-weight:400;opacity:.7;margin-left:2px}
 header .marca{font-weight:700;font-size:19px;flex:1;display:flex;align-items:center;gap:10px}
 header .ojo{width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center}
 header .ojo::after{content:"";width:9px;height:9px;border-radius:50%;background:#fff}
@@ -153,7 +155,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 </head>
 <body>
 <header id="cab" hidden>
-  <div class="marca"><span class="ojo" aria-hidden="true"></span><span>Caja COE</span></div>
+  <div class="marca"><span class="ojo" aria-hidden="true"></span><span>Caja COE <span class="ver" data-ver></span></span></div>
   <button id="btnPanel" hidden>Panel</button>
   <button id="btnSalir">Salir</button>
 </header>
@@ -162,6 +164,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
+const VERSION = 'v2.0 · 28 sep 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -327,7 +330,7 @@ function vistaLogin(){
         <span class="ojo" style="width:40px;height:40px;border-radius:50%;border:5px solid var(--iris);display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:50%;background:var(--iris)"></span></span>
         <h1 style="margin:0">Caja COE</h1>
       </div>
-      <p class="sub">Apertura y cierre de turno</p>
+      <p class="sub">Apertura y cierre de turno · ${VERSION}</p>
       <div class="bloque">
         <label for="lu">Usuario</label>
         <input id="lu" type="text" autocomplete="username" autocapitalize="none">
@@ -805,6 +808,7 @@ async function panelAjustes(){
 $('#btnSalir').onclick = () => salir(false);
 $('#btnPanel').onclick = () => $('#btnPanel').dataset.en==='1' ? vistaInicio() : vistaPanel('hoy');
 
+document.querySelectorAll('[data-ver]').forEach(e=>e.textContent=VERSION.split(' ')[0]);
 (function init(){
   if(SUPABASE_ANON.startsWith('PEGA')){
     app.innerHTML = `<div class="aviso mal" style="margin-top:30px"><b>Falta configurar la llave de Supabase.</b><br>Abre este archivo, busca <code>SUPABASE_ANON</code> y pega la llave “anon public” de tu proyecto.</div>`;
