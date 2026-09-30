@@ -64,6 +64,8 @@ end $$;
 
 revoke execute on function con_lista_login() from public, authenticated;
 revoke execute on function con_login(text, text) from public, authenticated;
+alter table con_usuarios add column if not exists intentos_login int not null default 0;
+alter table con_usuarios add column if not exists bloqueo_login_hasta timestamptz;
 revoke execute on function con_admin_desbloquear(uuid, uuid) from public, authenticated;
 grant execute on function con_lista_login() to anon;
 grant execute on function con_login(text, text) to anon;
