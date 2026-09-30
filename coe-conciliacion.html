@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.2 · 29 sep 2026 · Inicio de sesión con menú de usuarios -->
+<!-- COE Conciliación · v2.3 · 30 sep 2026 · Alertas por WhatsApp con el COE Bot -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -165,7 +165,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.2 · 29 sep 2026';
+const VERSION = 'v2.3 · 30 sep 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -733,7 +733,7 @@ async function detalleTurno(id){
 
 async function panelAlertas(){
   const a = await rpc('con_admin_alertas', {p_limite:60});
-  const nom = {diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro'};
+  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro'};
   $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
@@ -819,13 +819,16 @@ async function panelAjustes(){
       ${cfg('wa_alertas','WhatsApp para alertas','Separados por coma. El cajero del turno también recibe la suya.')}
       ${cfg('wa_resumen','WhatsApp para el resumen diario','Director, Subdirector y Contadora. Se usará en la Fase 3.')}
       ${cfg('email_alertas','Correo para alertas')}
-      ${cfg('webhook_url','Dirección del COE Bot','Cuando el bot tenga el número de Meta activo, pega aquí su dirección para mandar WhatsApp.')}
+      ${cfg('webhook_url','Dirección del COE Bot','La dirección pública del bot en Railway, por ejemplo https://coe-bot-production.up.railway.app')}
+      ${cfg('webhook_key','Clave del COE Bot','La misma clave que se puso en Railway como CAJA_KEY.','password')}
       ${cfg('emailjs_service','EmailJS service ID')}
       ${cfg('emailjs_template','EmailJS template ID','La plantilla debe usar {{to_email}}, {{subject}} y {{message}}.')}
       ${cfg('emailjs_public','EmailJS public key')}
       ${cfg('emailjs_private','EmailJS private key','','password')}
       ${cfg('dias_laborables','Días laborables','1 = lunes … 7 = domingo. Ejemplo: 1,2,3,4,5,6')}
       <button class="btn full" id="gcfg" style="margin-top:16px">Guardar avisos</button>
+      <button class="btn sec full" id="pcfg" style="margin-top:10px">Enviar mensaje de prueba</button>
+      <div id="pres"></div>
     </div>`;
   $('#pc').querySelectorAll('[data-suc]').forEach(b => b.querySelector('[data-gsuc]').onclick = e => ocupado(e.target, async () => {
     const d = {id:b.dataset.suc}; b.querySelectorAll('[data-f]').forEach(i => d[i.dataset.f] = i.value);
@@ -838,8 +841,24 @@ async function panelAjustes(){
   }));
   $('#nsuc').onclick = () => { const n = prompt('Nombre de la nueva sucursal'); if(n) rpc('con_admin_guardar_sucursal',{p_d:{nombre:n}}).then(()=>{toast('Sucursal creada. Agrega sus cajas.'); vistaPanel('ajustes');}).catch(e=>toast(e.message,true)); };
   $('#gcfg').onclick = () => ocupado($('#gcfg'), async () => {
-    const d = {}; ['wa_alertas','wa_resumen','email_alertas','webhook_url','emailjs_service','emailjs_template','emailjs_public','emailjs_private','dias_laborables'].forEach(k => d[k] = $('#k_'+k).value.trim());
+    const d = {}; ['wa_alertas','wa_resumen','email_alertas','webhook_url','webhook_key','emailjs_service','emailjs_template','emailjs_public','emailjs_private','dias_laborables'].forEach(k => d[k] = $('#k_'+k).value.trim());
     await rpc('con_admin_guardar_config', {p_d:d}); toast('Avisos guardados.');
+  });
+  $('#pcfg').onclick = () => ocupado($('#pcfg'), async () => {
+    const caja = m => $('#pres').innerHTML = m;
+    const r = await rpc('con_admin_probar_aviso');
+    if(!r.envio_id){ caja('<div class="aviso mal">No se envió al bot. Revisa que estén guardados la dirección del COE Bot, la clave y al menos un WhatsApp para alertas.</div>'); return; }
+    caja('<div class="aviso">Enviado al bot. Esperando respuesta…</div>');
+    let e = {estado:'pendiente'};
+    for(let i=0; i<6 && e.estado==='pendiente'; i++){ await new Promise(ok=>setTimeout(ok,2000)); e = await rpc('con_admin_estado_envio', {p_alerta:r.alerta}); }
+    if(e.estado==='pendiente') return caja('<div class="aviso ojo">El bot no ha respondido. Puede estar dormido en Railway; intenta de nuevo en un minuto.</div>');
+    let res = {}; try{ res = JSON.parse(e.respuesta||'{}'); }catch{}
+    if(e.codigo===200 && res.ok){
+      const via = (res.resultados||[]).map(x => `${esc(x.to)}: ${x.ok ? (x.via==='plantilla' ? 'enviado con plantilla' : 'enviado como texto (la plantilla aún no está aprobada)') : 'falló'}`).join('<br>');
+      return caja(`<div class="aviso"><b>Listo.</b> Revisa tu WhatsApp.<br>${via}</div>`);
+    }
+    const txt = e.codigo===401 ? 'La clave no coincide con CAJA_KEY de Railway.' : e.codigo===404 ? 'El bot aún no tiene la actualización de alertas de caja.' : 'El bot respondió con error.';
+    caja(`<div class="aviso mal"><b>${txt}</b><br><span style="font-size:14px">Código ${esc(e.codigo)}. ${esc((res.resultados||[]).map(x=>x.error).filter(Boolean).join(' ') || e.respuesta || '')}</span></div>`);
   });
 }
 
