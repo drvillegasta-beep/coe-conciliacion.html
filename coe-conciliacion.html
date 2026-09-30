@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.3 · 30 sep 2026 · Alertas por WhatsApp con el COE Bot -->
+<!-- COE Conciliación · v2.4 · 30 sep 2026 · Aviso por WhatsApp desde el celular de la cajera -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -165,7 +165,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.3 · 30 sep 2026';
+const VERSION = 'v2.4 · 30 sep 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -621,28 +621,41 @@ function vistaCerrar(t){
     if(!pin) return;
     const montos = {}; Object.entries(st.montos).forEach(([k,v]) => montos[k] = v===''?0:v);
     const r = await rpc('con_cerrar_turno', {p_turno:t.id, p_fondo_final:conteoJSON(st.conteo), p_montos:montos, p_justificacion:st.just, p_pin:pin});
-    if(r.ok){ await cargar(); return vistaResultado(r, t); }
+    if(r.ok){ await cargar(); return vistaResultado(r, t, st.just); }
     if(r.code==='JUSTIFICAR'){ st.dif=r; st.paso=3; pintar(); window.scrollTo(0,0); return; }
     throw new Error(r.error || 'No se pudo cerrar el turno.');
   });
   pintar();
 }
 
-function vistaResultado(r, t){
+function vistaResultado(r, t, just){
   const txt = {cuadrado:'La caja cuadró', faltante:`Faltante de ${money(Math.abs(r.dif_total))}`, sobrante:`Sobrante de ${money(r.dif_total)}`, revisar:'Cerrado con diferencias'}[r.estado];
+  const conDif = r.estado !== 'cuadrado';
+  const mensaje = [
+    `*Caja COE* · ${t.sucursal} · ${t.caja}`,
+    `Turno ${t.turno} ${fechaCorta(t.fecha)} · ${t.usuario}`,
+    `*${txt.toUpperCase()}*`,
+    `Efectivo ${signo(r.dif_efectivo)} · Tarjeta ${signo(r.dif_tarjeta)} · Transferencia ${signo(r.dif_transferencia)}`,
+    `Explicación: ${just || '-'}`
+  ].join('\n');
   app.innerHTML = `
     <h1>Turno cerrado</h1>
     <p class="sub">${esc(t.caja)}, turno ${esc(t.turno)}.</p>
-    <div class="resultado ${r.estado}"><div class="grande">${txt}</div>
-      ${r.estado!=='cuadrado' ? '<div style="margin-top:8px">Se avisó a la Dirección.</div>' : ''}</div>
+    <div class="resultado ${r.estado}"><div class="grande">${txt}</div></div>
+    ${conDif ? `<div class="aviso mal"><b>Avisa a la Dirección antes de salir.</b> Toca el botón verde, elige el grupo <b>Caja COE</b> y envía el mensaje. No lo cambies.</div>
+      <a class="btn full" id="wa" style="background:#1F8F4E;margin:6px 0 4px" href="https://wa.me/?text=${encodeURIComponent(mensaje)}" target="_blank" rel="noopener">Avisar por WhatsApp</a>` : ''}
     <div class="bloque"><table class="desglose">
       <tr><td>Fondo que queda en caja</td><td>${money(r.fondo_final)}</td></tr>
       <tr><td>Diferencia en efectivo</td><td>${signo(r.dif_efectivo)}</td></tr>
       <tr><td>Diferencia en tarjeta</td><td>${signo(r.dif_tarjeta)}</td></tr>
       <tr><td>Diferencia en transferencia</td><td>${signo(r.dif_transferencia)}</td></tr>
     </table></div>
-    ${acciones('<button class="btn" id="ini">Volver al inicio</button>')}`;
+    ${acciones(`<button class="btn" id="ini" ${conDif?'disabled':''}>${conDif?'Primero avisa por WhatsApp':'Volver al inicio'}</button>`)}`;
   $('#ini').onclick = vistaInicio;
+  if(conDif) $('#wa').onclick = () => {
+    rpc('con_aviso_manual', {p_turno:t.id}).catch(()=>{});
+    setTimeout(() => { const b=$('#ini'); if(b){ b.disabled=false; b.textContent='Ya envié el aviso, volver al inicio'; } }, 1500);
+  };
 }
 
 // ===================== Panel =====================
@@ -710,6 +723,7 @@ async function detalleTurno(id){
     <p class="sub">${esc(t.usuario)}${t.es_cobertura?' (cobertura)':''}. Abrió ${hora(t.abierto_en)}${t.cerrado_en?', cerró '+hora(t.cerrado_en):''}.</p>
     ${t.estado!=='abierto' ? `<div class="resultado ${t.estado}" style="padding:14px"><div class="grande" style="font-size:30px">${ESTADOS[t.estado]} ${t.estado==='cuadrado'?'':money(Math.abs(t.dif_total))}</div></div>` : '<div class="aviso">Turno abierto.</div>'}
     ${t.justificacion ? `<div class="aviso ojo"><b>Explicación:</b> ${esc(t.justificacion)}</div>` : ''}
+    ${['faltante','sobrante','revisar'].includes(t.estado) ? `<div class="aviso ${t.aviso_manual_en?'':'mal'}">${t.aviso_manual_en ? 'Avisó por WhatsApp a las '+hora(t.aviso_manual_en)+'.' : '<b>No tocó el botón de aviso por WhatsApp.</b>'}</div>` : ''}
     ${t.nota_apertura ? `<div class="aviso ojo"><b>Nota de apertura:</b> ${esc(t.nota_apertura)} (cierre anterior ${money(t.fondo_previo)})</div>` : ''}
     <table class="desglose">
       ${fila('Fondo inicial', money(t.fondo_inicial_total))}
