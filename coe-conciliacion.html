@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.6.1 · 1 oct 2026 · Captura de respaldo si el lector falla -->
+<!-- COE Conciliación · v2.6.2 · 1 oct 2026 · Botón para borrar comprobantes equivocados -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -169,7 +169,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.6.1 · 1 oct 2026';
+const VERSION = 'v2.6.2 · 1 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -561,15 +561,15 @@ async function vistaTurno(id){
          for(const e of sinLeer){ if(u[e.archivo]){ await rpc('con_releer', {p_evid:e.id, p_url:u[e.archivo]}); e.estado='pendiente'; } } }
     catch(e){ toast(e.message, true); }
   }
-  const de = tipo => evs.filter(e => e.tipo===tipo);
+  const de = tipo => evs.filter(e => e.tipo===tipo && e.estado!=='descartado');
   const s = sumarLecturas(evs);
   app.innerHTML = `
     <button class="btn sec chico" id="volver">Inicio</button>
     <h1 style="margin-top:14px">${esc(t.caja)}</h1>
-    <p class="sub">Turno ${t.turno==='comida'?'de comida':esc(t.turno)}, abierto a las ${hora(t.abierto_en)}. Fondo inicial: ${money(t.fondo_inicial_total)}</p>
+    <p class="sub">Turno ${t.turno==='comida'?'de comida':esc(t.turno)}, abierto a las ${hora(t.abierto_en)} · Fondo inicial: ${money(t.fondo_inicial_total)}</p>
 
     <h2>Comprobantes</h2>
-    <p class="sub">Sube cada comprobante; la IA lee los montos sola. Revisa que lo leído coincida con el papel.</p>
+    <p class="sub">Sube cada comprobante; la IA lee los montos sola. Revisa que lo leído coincida con el papel; si te equivocaste de foto, bórrala.</p>
     <div class="bloque">
       ${Object.entries(EVID).map(([k,v]) => `
         <div class="evid" style="flex-wrap:wrap">
@@ -577,10 +577,10 @@ async function vistaTurno(id){
             <span>${de(k).length ? '' : (k==='eoptics'?'<span class="marca-falta">Falta</span>':v.d)}</span></div>
           <label class="btn chico sec" style="margin:0">${de(k).length && k!=='transferencia' && k!=='depositador' ? 'Otra' : 'Subir'}<input type="file" accept="${v.acepta}" data-tipo="${k}" ${v.acepta==='image/*'?'capture="environment"':''}></label>
           ${de(k).map(e => `<div style="flex-basis:100%;font-size:15px;padding:8px 10px;margin-top:8px;border-radius:8px;background:var(--paper)">
-              ${estadoLectura(e)} <a href="#" data-ver="${esc(e.archivo)}" data-nom="${esc(v.n)}" style="color:var(--iris)">Ver</a>
-              ${e.estado==='error' ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="btn chico sec" data-releer="${e.id}" data-arch="${esc(e.archivo)}">Leer de nuevo</button><button class="btn chico sec" data-descartar="${e.id}">Descartar</button></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><div style="flex:1">${estadoLectura(e)} <a href="#" data-ver="${esc(e.archivo)}" data-nom="${esc(v.n)}" style="color:var(--iris)">Ver</a></div>
+              <button class="btn chico sec" data-borrar="${e.id}" aria-label="Borrar este comprobante" style="color:var(--bad);flex:none">Borrar</button></div>
+              ${e.estado==='error' ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="btn chico sec" data-releer="${e.id}" data-arch="${esc(e.archivo)}">Leer de nuevo</button></div>
               <div style="margin-top:8px"><button class="btn chico sec full" data-manual="${e.id}" data-tipo-m="${e.tipo}">Capturar el monto a mano</button></div>` : ''}
-              ${e.estado==='ok' ? `<div style="margin-top:6px"><a href="#" data-descartar="${e.id}" style="color:var(--muted);font-size:14px">No coincide con el papel: descartar</a></div>` : ''}
             </div>`).join('')}
         </div>`).join('')}
     </div>
@@ -622,9 +622,10 @@ async function vistaTurno(id){
       m.remove(); toast('Monto guardado.'); vistaTurno(t.id);
     });
   });
-  app.querySelectorAll('[data-descartar]').forEach(b => b.onclick = ev => { ev.preventDefault();
-    if(!confirm('¿Descartar este comprobante? No se borra: queda registrado como descartado.')) return;
-    rpc('con_descartar_evidencia', {p_evid:b.dataset.descartar}).then(() => vistaTurno(t.id)).catch(e => toast(e.message,true)); });
+  app.querySelectorAll('[data-borrar]').forEach(b => b.onclick = () => {
+    if(!confirm('¿Borrar este comprobante? Úsalo si te equivocaste de foto o de ticket; después sube el correcto.')) return;
+    ocupado(b, async () => { await rpc('con_descartar_evidencia', {p_evid:b.dataset.borrar}); toast('Comprobante borrado.'); vistaTurno(t.id); });
+  });
   app.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const f = inp.files[0]; if(!f) return;
     const lbl = inp.parentElement; lbl.classList.add('cargando'); lbl.firstChild.textContent='Subiendo…';
@@ -680,7 +681,7 @@ function vistaCerrar(t, evs){
       app.innerHTML = `
         <button class="btn sec chico" id="atras">Volver al conteo</button>
         <h1 style="margin-top:14px">Cerrar turno</h1>
-        <p class="sub">Paso 2 de 2. Estos montos los leyó el sistema de tus comprobantes. Si alguno no coincide con el papel, regresa al turno y descarta ese comprobante.</p>
+        <p class="sub">Paso 2 de 2. Estos montos los leyó el sistema de tus comprobantes. Si alguno no coincide con el papel, regresa al turno, bórralo y sube el correcto.</p>
         <div class="bloque"><table class="desglose">
           ${fila('Fondo inicial', money(t.fondo_inicial_total))}
           ${fila('Efectivo cobrado (eOptics)', money(s.pe))}
@@ -857,7 +858,7 @@ async function detalleTurno(id){
     </table>
     <h3 style="margin-top:18px;font-size:17px">Comprobantes</h3>
     <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado, ev:e}))].map(e =>
-      `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}${e.ev.estado==='ok'?'<br>'+(e.ev.lectura?.manual?'<b style="color:var(--warn)">Capturado a mano:</b> ':'')+textoLectura(e.ev):e.ev.estado==='descartado'?' · descartado':e.ev.estado==='error'?' · no se pudo leer':''}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
+      `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}${e.ev.estado==='ok'?'<br>'+(e.ev.lectura?.manual?'<b style="color:var(--warn)">Capturado a mano:</b> ':'')+textoLectura(e.ev):e.ev.estado==='descartado'?' · <b style="color:var(--bad)">borrado por la cajera</b>':e.ev.estado==='error'?' · no se pudo leer':''}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
