@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.5 · 1 oct 2026 · Cierre de turnos pendientes y semáforo en rojo -->
+<!-- COE Conciliación · v2.6 · 1 oct 2026 · Lectura con IA, turno de comida y cierre automático -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -124,7 +124,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .tabs button[aria-current=true]{background:var(--ink);border-color:var(--ink);color:#fff}
 .dia{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:10px 0}
 .dia .cab{font-weight:700;margin-bottom:8px}
-.dia .turnos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dia .turnos{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
 .chip{border-radius:8px;padding:10px;text-align:left;border:0;cursor:pointer;width:100%}
 .chip b{display:block;font-size:14px}
 .chip span{font-size:15px;font-variant-numeric:tabular-nums}
@@ -169,7 +169,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.5 · 1 oct 2026';
+const VERSION = 'v2.6 · 1 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -485,6 +485,7 @@ function vistaAbrir(caja){
       <p class="sub">${esc(caja.nombre)}, ${esc(caja.sucursal)}</p>
       <div class="seg" role="group" aria-label="Turno">
         <button aria-pressed="${st.turno==='matutino'}" data-t="matutino">Matutino</button>
+        <button aria-pressed="${st.turno==='comida'}" data-t="comida">Comida</button>
         <button aria-pressed="${st.turno==='vespertino'}" data-t="vespertino">Vespertino</button>
       </div>
       <h2>Cuenta el fondo con el que abres</h2>
@@ -519,45 +520,105 @@ function vistaAbrir(caja){
 }
 
 // ===================== Turno en curso =====================
+const NOMBRE_TURNO = {matutino:'Matutino', comida:'Comida', vespertino:'Vespertino'};
+const ABREV_TURNO = {matutino:'Mat.', comida:'Com.', vespertino:'Vesp.'};
+// Resumen legible de lo que leyó la IA
+function textoLectura(e){
+  const l = e.lectura || {};
+  if(e.tipo==='eoptics') return `Efectivo ${money(l.efectivo)} · Tarjeta ${money(l.tarjeta)} · Transf. ${money(l.transferencia)}`;
+  if(e.tipo==='transferencia') return `Monto ${money(l.monto)}`;
+  return `Total ${money(l.total)}`;
+}
+function estadoLectura(e){
+  if(e.estado==='pendiente') return '<span style="color:var(--iris)">Leyendo con IA…</span>';
+  if(e.estado==='ok') return `<span class="marca-ok">Leído:</span> ${textoLectura(e)}`;
+  if(e.estado==='error') return `<span class="marca-falta">No se pudo leer.</span> ${esc(e.error||'')}`;
+  if(e.estado==='descartado') return '<span style="color:var(--idle)">Descartado</span>';
+  return '';
+}
+function sumarLecturas(evs){
+  const ok = evs.filter(e=>e.estado==='ok');
+  const eo = ok.filter(e=>e.tipo==='eoptics').slice(-1)[0]?.lectura || null;
+  const suma = (tipo, campo) => ok.filter(e=>e.tipo===tipo).reduce((s,e)=>s+(Number(e.lectura?.[campo])||0),0);
+  return { eo, pe:Number(eo?.efectivo)||0, pt:Number(eo?.tarjeta)||0, ptr:Number(eo?.transferencia)||0,
+           rd:suma('depositador','total'), rv:suma('voucher','total'), rb:suma('transferencia','monto'),
+           pendientes: evs.filter(e=>e.estado==='pendiente').length, errores: evs.filter(e=>e.estado==='error').length };
+}
+
+let sondeo;
 async function vistaTurno(id){
+  clearTimeout(sondeo);
   let t;
   try{ t = await rpc('con_turno', {p_turno:id}); } catch(e){ return toast(e.message,true); }
   if(t.estado !== 'abierto') return vistaInicio();
-  const cuenta = tipo => t.evidencias.filter(e=>e.tipo===tipo).length;
+  try{ t.evidencias = await rpc('con_lectura', {p_turno:id}); }catch{}
+  const evs = t.evidencias.filter(e => e.tipo in EVID);
+  // Comprobantes subidos antes de la lectura con IA: se mandan a leer solos
+  const sinLeer = evs.filter(e => e.estado==='no_aplica');
+  if(sinLeer.length){
+    try{ const u = await urlsFirmadas(sinLeer.map(e=>e.archivo));
+         for(const e of sinLeer){ if(u[e.archivo]){ await rpc('con_releer', {p_evid:e.id, p_url:u[e.archivo]}); e.estado='pendiente'; } } }
+    catch(e){ toast(e.message, true); }
+  }
+  const de = tipo => evs.filter(e => e.tipo===tipo);
+  const s = sumarLecturas(evs);
   app.innerHTML = `
     <button class="btn sec chico" id="volver">Inicio</button>
     <h1 style="margin-top:14px">${esc(t.caja)}</h1>
-    <p class="sub">Turno ${esc(t.turno)} abierto a las ${hora(t.abierto_en)}. Fondo inicial ${money(t.fondo_inicial_total)}.</p>
+    <p class="sub">Turno ${t.turno==='comida'?'de comida':esc(t.turno)}, abierto a las ${hora(t.abierto_en)}. Fondo inicial: ${money(t.fondo_inicial_total)}</p>
 
     <h2>Comprobantes</h2>
+    <p class="sub">Sube cada comprobante; la IA lee los montos sola. Revisa que lo leído coincida con el papel.</p>
     <div class="bloque">
       ${Object.entries(EVID).map(([k,v]) => `
-        <div class="evid">
+        <div class="evid" style="flex-wrap:wrap">
           <div class="t"><b>${v.n}${k==='eoptics'?' (obligatorio)':''}</b>
-            <span>${cuenta(k) ? `<span class="marca-ok">${cuenta(k)} subido${cuenta(k)>1?'s':''}</span>` : (k==='eoptics'?'<span class="marca-falta">Falta</span>':v.d)}</span></div>
-          <label class="btn chico sec" style="margin:0">Subir<input type="file" accept="${v.acepta}" data-tipo="${k}" ${v.acepta==='image/*'?'capture="environment"':''}></label>
+            <span>${de(k).length ? '' : (k==='eoptics'?'<span class="marca-falta">Falta</span>':v.d)}</span></div>
+          <label class="btn chico sec" style="margin:0">${de(k).length && k!=='transferencia' && k!=='depositador' ? 'Otra' : 'Subir'}<input type="file" accept="${v.acepta}" data-tipo="${k}" ${v.acepta==='image/*'?'capture="environment"':''}></label>
+          ${de(k).map(e => `<div style="flex-basis:100%;font-size:15px;padding:8px 10px;margin-top:8px;border-radius:8px;background:var(--paper)">
+              ${estadoLectura(e)} <a href="#" data-ver="${esc(e.archivo)}" data-nom="${esc(v.n)}" style="color:var(--iris)">Ver</a>
+              ${e.estado==='error' ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="btn chico sec" data-releer="${e.id}" data-arch="${esc(e.archivo)}">Leer de nuevo</button><button class="btn chico sec" data-descartar="${e.id}">Descartar</button></div>` : ''}
+              ${e.estado==='ok' ? `<div style="margin-top:6px"><a href="#" data-descartar="${e.id}" style="color:var(--muted);font-size:14px">No coincide con el papel: descartar</a></div>` : ''}
+            </div>`).join('')}
         </div>`).join('')}
     </div>
+    ${s.eo ? `<div class="aviso">Hasta ahora: eOptics efectivo <b>${money(s.pe)}</b>, depositado <b>${money(s.rd)}</b>${s.pt?`, tarjeta ${money(s.pt)} / voucher ${money(s.rv)}`:''}${s.ptr?`, transferencias ${money(s.ptr)} / banco ${money(s.rb)}`:''}.</div>` : ''}
 
     <h2>Gastos de caja chica</h2>
     <div class="bloque">
-      ${t.gastos.length ? `<div class="lista">${t.gastos.map(g=>`<div class="item" ${g.archivo?`data-arch="${esc(g.archivo)}"`:''}><div class="t"><b>${esc(g.concepto)}</b><span>${hora(g.creado)}${g.archivo?', con comprobante':''}</span></div><div class="v">${money(g.monto)}</div></div>`).join('')}</div>`
+      ${t.gastos.length ? `<div class="lista">${t.gastos.map(g=>`<div class="item" ${g.archivo?`data-gasto="${esc(g.archivo)}"`:''}><div class="t"><b>${esc(g.concepto)}</b><span>${hora(g.creado)}${g.archivo?', con comprobante':''}</span></div><div class="v">${money(g.monto)}</div></div>`).join('')}</div>`
         : '<p class="sub" style="margin:0">Sin gastos en este turno.</p>'}
       <button class="btn sec full" id="gasto" style="margin-top:12px">Registrar gasto</button>
     </div>
     ${acciones('<button class="btn" id="cerrar">Cerrar turno</button>')}`;
-  $('#volver').onclick = cargar;
-  $('#gasto').onclick = () => modalGasto(t.id);
-  $('#cerrar').onclick = () => cuenta('eoptics') ? vistaCerrar(t) : toast('Primero sube el PDF del corte de eOptics.', true);
-  app.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch, 'Comprobante de gasto'));
+  $('#volver').onclick = () => { clearTimeout(sondeo); cargar(); };
+  $('#gasto').onclick = () => { clearTimeout(sondeo); modalGasto(t.id); };
+  $('#cerrar').onclick = () => {
+    if(!s.eo) return toast(de('eoptics').length ? 'Espera a que se lea el corte de eOptics.' : 'Primero sube el PDF del corte de eOptics.', true);
+    if(s.pendientes) return toast('Espera a que terminen de leerse los comprobantes.', true);
+    if(s.errores) return toast('Hay un comprobante que no se pudo leer: léelo de nuevo o descártalo.', true);
+    clearTimeout(sondeo); vistaCerrar(t, evs);
+  };
+  app.querySelectorAll('[data-gasto]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.gasto, 'Comprobante de gasto'));
+  app.querySelectorAll('[data-ver]').forEach(x => x.onclick = ev => { ev.preventDefault(); abrirArchivo(x.dataset.ver, x.dataset.nom); });
+  app.querySelectorAll('[data-releer]').forEach(b => b.onclick = () => ocupado(b, async () => {
+    const url = (await urlsFirmadas([b.dataset.arch]))[b.dataset.arch];
+    await rpc('con_releer', {p_evid:b.dataset.releer, p_url:url}); vistaTurno(t.id);
+  }));
+  app.querySelectorAll('[data-descartar]').forEach(b => b.onclick = ev => { ev.preventDefault();
+    if(!confirm('¿Descartar este comprobante? No se borra: queda registrado como descartado.')) return;
+    rpc('con_descartar_evidencia', {p_evid:b.dataset.descartar}).then(() => vistaTurno(t.id)).catch(e => toast(e.message,true)); });
   app.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const f = inp.files[0]; if(!f) return;
     const lbl = inp.parentElement; lbl.classList.add('cargando'); lbl.firstChild.textContent='Subiendo…';
     try{ const p = await subirArchivo(t.id, inp.dataset.tipo, f);
-         await rpc('con_registrar_evidencia', {p_turno:t.id, p_tipo:inp.dataset.tipo, p_archivo:p});
-         toast('Comprobante subido.'); vistaTurno(t.id); }
+         const url = (await urlsFirmadas([p]))[p];
+         await rpc('con_registrar_evidencia', {p_turno:t.id, p_tipo:inp.dataset.tipo, p_archivo:p, p_url:url});
+         toast('Comprobante subido. Leyendo…'); vistaTurno(t.id); }
     catch(e){ toast(e.message,true); lbl.classList.remove('cargando'); lbl.firstChild.textContent='Subir'; }
   });
+  // Mientras haya lecturas en curso, revisar cada 3 segundos
+  if(s.pendientes) sondeo = setTimeout(() => { if(document.querySelector('#cerrar')) vistaTurno(t.id); }, 3000);
 }
 
 function modalGasto(turnoId){
@@ -583,13 +644,10 @@ function modalGasto(turnoId){
 }
 
 // ===================== Cerrar turno =====================
-function vistaCerrar(t){
-  const st = { paso:1, conteo:{}, montos:{}, just:null, dif:null };
-  const campo = (k, n) => `<div class="monto"><label for="m_${k}" style="margin:0;font-weight:400">${n}</label>
-      <input id="m_${k}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${st.montos[k] ?? ''}"></div>`;
-  const leerMontos = () => ['pos_efectivo','pos_tarjeta','pos_transferencia','real_depositado','real_voucher','real_banco']
-      .forEach(k => { const v=$('#m_'+k)?.value; if(v!==undefined) st.montos[k] = v===''? '' : Number(v); });
-
+function vistaCerrar(t, evs){
+  const st = { paso:1, conteo:{}, just:null, dif:null };
+  const s = sumarLecturas(evs);
+  const fila = (n,v) => `<tr><td>${n}</td><td>${v}</td></tr>`;
   const pintar = () => {
     if(st.paso===1){
       app.innerHTML = `
@@ -605,14 +663,18 @@ function vistaCerrar(t){
       app.innerHTML = `
         <button class="btn sec chico" id="atras">Volver al conteo</button>
         <h1 style="margin-top:14px">Cerrar turno</h1>
-        <p class="sub">Paso 2 de 2. Copia los totales de tus comprobantes.</p>
-        <h2>Según el corte de eOptics</h2>
-        <div class="bloque">${campo('pos_efectivo','Cobrado en efectivo')}${campo('pos_tarjeta','Cobrado con tarjeta')}${campo('pos_transferencia','Cobrado por transferencia')}</div>
-        <h2>Lo que realmente entró</h2>
-        <div class="bloque">${campo('real_depositado','Depositado en el depositador')}${campo('real_voucher','Total del voucher de terminal')}${campo('real_banco','Transferencias recibidas en banco')}</div>
-        <div class="aviso">Fondo final contado: <b>${money(totalConteo(st.conteo))}</b>. Gastos del turno: <b>${money(t.gastos_total)}</b>.</div>
+        <p class="sub">Paso 2 de 2. Estos montos los leyó el sistema de tus comprobantes. Si alguno no coincide con el papel, regresa al turno y descarta ese comprobante.</p>
+        <div class="bloque"><table class="desglose">
+          ${fila('Fondo inicial', money(t.fondo_inicial_total))}
+          ${fila('Efectivo cobrado (eOptics)', money(s.pe))}
+          ${fila('Depositado en el depositador', money(s.rd))}
+          ${fila('Gastos de caja chica', money(t.gastos_total))}
+          ${fila('Fondo final que contaste', money(totalConteo(st.conteo)))}
+          ${fila('Tarjeta · eOptics / voucher', `${money(s.pt)} / ${money(s.rv)}`)}
+          ${fila('Transferencia · eOptics / banco', `${money(s.ptr)} / ${money(s.rb)}`)}
+        </table></div>
         ${acciones('<button class="btn" id="firmar">Firmar cierre</button>')}`;
-      $('#atras').onclick = () => { leerMontos(); st.paso=1; pintar(); };
+      $('#atras').onclick = () => { st.paso=1; pintar(); };
       $('#firmar').onclick = firmar;
     } else {
       const d = st.dif;
@@ -631,14 +693,11 @@ function vistaCerrar(t){
       $('#firmar').onclick = firmar;
     }
   };
-
   const firmar = () => ocupado($('#firmar'), async () => {
-    if(st.paso===2) leerMontos();
     if(st.paso===3){ st.just = $('#just').value.trim(); if(!st.just) throw new Error('Escribe la explicación de la diferencia.'); }
     const pin = await pedirPin('Firmar cierre', st.paso===3 ? 'Confirmas el cierre con diferencia.' : `Fondo final de <b>${money(totalConteo(st.conteo))}</b>.`);
     if(!pin) return;
-    const montos = {}; Object.entries(st.montos).forEach(([k,v]) => montos[k] = v===''?0:v);
-    const r = await rpc('con_cerrar_turno', {p_turno:t.id, p_fondo_final:conteoJSON(st.conteo), p_montos:montos, p_justificacion:st.just, p_pin:pin});
+    const r = await rpc('con_cerrar_turno', {p_turno:t.id, p_fondo_final:conteoJSON(st.conteo), p_justificacion:st.just, p_pin:pin});
     if(r.ok){ await cargar(); return vistaResultado(r, t, st.just); }
     if(r.code==='JUSTIFICAR'){ st.dif=r; st.paso=3; pintar(); window.scrollTo(0,0); return; }
     throw new Error(r.error || 'No se pudo cerrar el turno.');
@@ -700,12 +759,12 @@ async function panelHoy(){
     if(!ts.length){
       const h = caja.horarios?.[tn]; let tarde=false;
       if(h){ const [hh,mm]=h.cierre.split(':').map(Number); const lim=hh*60+mm+h.gracia; const [ah,am]=caja.hora_local.split(':').map(Number); tarde = ah*60+am >= lim; }
-      return `<div class="chip ${tarde?'tarde':'vacio'}"><b>${tn==='matutino'?'Matutino':'Vespertino'}</b><span>${tarde?'Sin registro':'Pendiente'}</span></div>`;
+      return `<div class="chip ${tarde?'tarde':'vacio'}"><b>${NOMBRE_TURNO[tn]}</b><span>${tarde?'Sin registro':'Pendiente'}</span></div>`;
     }
     const h = caja.horarios?.[tn]; let vencido=false;
     if(h){ const [hh,mm]=h.cierre.split(':').map(Number); const lim=hh*60+mm+h.gracia; const [ah,am]=caja.hora_local.split(':').map(Number); vencido = ah*60+am >= lim; }
     return ts.map(x => { const ab = x.estado==='abierto', venc = ab && vencido;
-      return `<button class="chip ${venc?'vencido':x.estado}" data-det="${x.id}"><b>${tn==='matutino'?'Matutino':'Vespertino'} · ${esc(x.usuario.split(' ')[0])}</b>
+      return `<button class="chip ${venc?'vencido':x.estado}" data-det="${x.id}"><b>${NOMBRE_TURNO[tn]} · ${esc(x.usuario.split(' ')[0])}</b>
       <span>${venc ? 'Sin cerrar · pasó la hora' : ab ? 'Abierto '+hora(x.abierto_en) : x.estado==='cuadrado' ? 'Cuadró' : x.estado==='sin_cierre' ? 'Sin cierre' : ESTADOS[x.estado]+' '+money(Math.abs(x.dif_total))}</span></button>`; }).join('');
   };
   const pend = d.turnos.filter(x => ['faltante','sobrante','revisar','sin_cierre'].includes(x.estado));
@@ -715,7 +774,7 @@ async function panelHoy(){
       ${viejos.map(v => `<button class="btn peligro full" style="margin-top:10px" data-forzar="${v.id}">Cerrar ${esc(v.caja)} · ${v.turno} ${fechaCorta(v.fecha)} · ${esc(v.usuario.split(' ')[0])}</button>`).join('')}</div>` : ''}
     ${pend.length ? `<div class="aviso mal"><b>${pend.length} ${pend.length>1?'turnos':'turno'} con diferencia hoy.</b> Toca cada uno para ver comprobantes y explicación.</div>` : ''}
     ${d.cajas.map(c => `<div class="dia"><div class="cab">${esc(c.nombre)} <span class="sub" style="font-weight:400">${esc(c.sucursal)}</span></div>
-      <div class="turnos"><div>${chip(c,'matutino')}</div><div>${chip(c,'vespertino')}</div></div></div>`).join('') || '<div class="vacio-msg">No hay cajas configuradas.</div>'}`;
+      <div class="turnos"><div>${chip(c,'matutino')}</div>${d.turnos.some(x=>x.caja_id===c.id&&x.turno==='comida')?`<div>${chip(c,'comida')}</div>`:''}<div>${chip(c,'vespertino')}</div></div></div>`).join('') || '<div class="vacio-msg">No hay cajas configuradas.</div>'}`;
   $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
   $('#pc').querySelectorAll('[data-forzar]').forEach(b => b.onclick = () => cerrarPendiente(b.dataset.forzar));
 }
@@ -749,7 +808,7 @@ async function panelHistorial(){
     const ts = d.turnos.filter(x => !f || (f==='dif' ? ['faltante','sobrante','revisar'].includes(x.estado) : x.estado===f));
     const falt = ts.filter(x=>x.estado==='faltante').reduce((s,x)=>s+Math.abs(Number(x.dif_total)),0);
     $('#hl').innerHTML = (falt ? `<div class="aviso mal" style="margin-top:0">Faltantes en el periodo: <b>${money(falt)}</b></div>` : '') +
-      (ts.map(x => `<div class="item" data-det="${x.id}"><div class="t"><b>${fechaCorta(x.fecha)} · ${esc(x.caja)} · ${x.turno==='matutino'?'Mat.':'Vesp.'}</b>
+      (ts.map(x => `<div class="item" data-det="${x.id}"><div class="t"><b>${fechaCorta(x.fecha)} · ${esc(x.caja)} · ${ABREV_TURNO[x.turno]||x.turno}</b>
         <span>${esc(x.usuario)}${x.es_cobertura?' (cobertura)':''}, ${esc(x.sucursal)}</span></div>
         <div class="v ${x.estado}">${x.estado==='cuadrado'?'Cuadró':x.estado==='abierto'?'Abierto':money(x.dif_total)}</div></div>`).join('') || '<div class="vacio-msg">No hay turnos en esas fechas.</div>');
     $('#hl').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
@@ -780,8 +839,8 @@ async function detalleTurno(id){
         fila('<b>Diferencia transferencia</b>', `<b>${signo(t.dif_transferencia)}</b>`)].join('') : ''}
     </table>
     <h3 style="margin-top:18px;font-size:17px">Comprobantes</h3>
-    <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado}))].map(e =>
-      `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
+    <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado, ev:e}))].map(e =>
+      `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}${e.ev.estado==='ok'?'<br>'+textoLectura(e.ev):e.ev.estado==='descartado'?' · descartado':e.ev.estado==='error'?' · no se pudo leer':''}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
@@ -890,6 +949,7 @@ async function panelAjustes(){
       ${cfg('emailjs_public','EmailJS public key')}
       ${cfg('emailjs_private','EmailJS private key','','password')}
       ${cfg('dias_laborables','Días laborables','1 = lunes … 7 = domingo. Ejemplo: 1,2,3,4,5,6')}
+      ${cfg('cierre_auto_min','Cierre automático (minutos después del límite)','Si un turno sigue abierto este tiempo después de su hora límite, el sistema lo cierra como "Sin cierre". El de comida se cierra junto con el vespertino.')}
       <button class="btn full" id="gcfg" style="margin-top:16px">Guardar avisos</button>
       <button class="btn sec full" id="pcfg" style="margin-top:10px">Enviar mensaje de prueba</button>
       <div id="pres"></div>
@@ -905,7 +965,7 @@ async function panelAjustes(){
   }));
   $('#nsuc').onclick = () => { const n = prompt('Nombre de la nueva sucursal'); if(n) rpc('con_admin_guardar_sucursal',{p_d:{nombre:n}}).then(()=>{toast('Sucursal creada. Agrega sus cajas.'); vistaPanel('ajustes');}).catch(e=>toast(e.message,true)); };
   $('#gcfg').onclick = () => ocupado($('#gcfg'), async () => {
-    const d = {}; ['wa_alertas','wa_resumen','email_alertas','webhook_url','webhook_key','emailjs_service','emailjs_template','emailjs_public','emailjs_private','dias_laborables'].forEach(k => d[k] = $('#k_'+k).value.trim());
+    const d = {}; ['wa_alertas','wa_resumen','email_alertas','webhook_url','webhook_key','emailjs_service','emailjs_template','emailjs_public','emailjs_private','dias_laborables','cierre_auto_min'].forEach(k => d[k] = $('#k_'+k).value.trim());
     await rpc('con_admin_guardar_config', {p_d:d}); toast('Avisos guardados.');
   });
   $('#pcfg').onclick = () => ocupado($('#pcfg'), async () => {
