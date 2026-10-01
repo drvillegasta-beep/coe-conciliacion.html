@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.4.2 · 1 oct 2026 · Logo de la clínica -->
+<!-- COE Conciliación · v2.5 · 1 oct 2026 · Cierre de turnos pendientes y semáforo en rojo -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,6 +133,9 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .chip.sobrante,.chip.revisar{background:var(--warn-soft);color:var(--warn)}
 .chip.abierto{background:var(--iris-soft);color:var(--iris)}
 .chip.vacio{background:var(--paper);color:var(--idle);cursor:default}
+.chip.sin_cierre,.chip.vencido{background:var(--bad-soft);color:var(--bad)}
+.v.sin_cierre{color:var(--bad)}
+.resultado.sin_cierre{background:var(--bad-soft);color:var(--bad)}
 .chip.tarde{background:var(--bad-soft);color:var(--bad);cursor:default}
 .lista .item{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
 .lista .item:first-child{border-top:0}
@@ -166,7 +169,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.4.2 · 1 oct 2026';
+const VERSION = 'v2.5 · 1 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -180,7 +183,7 @@ const EVID = {
   transferencia:{n:'Transferencias', d:'Captura de cada transferencia', acepta:'image/*,application/pdf'},
   voucher:      {n:'Voucher de terminal', d:'Foto del cierre de lote', acepta:'image/*'}
 };
-const ESTADOS = {cuadrado:'Cuadró', faltante:'Faltante', sobrante:'Sobrante', revisar:'Revisar', abierto:'Abierto'};
+const ESTADOS = {cuadrado:'Cuadró', faltante:'Faltante', sobrante:'Sobrante', revisar:'Revisar', abierto:'Abierto', sin_cierre:'Sin cierre'};
 
 // ===================== Utilidades =====================
 const $ = s => document.querySelector(s);
@@ -699,15 +702,40 @@ async function panelHoy(){
       if(h){ const [hh,mm]=h.cierre.split(':').map(Number); const lim=hh*60+mm+h.gracia; const [ah,am]=caja.hora_local.split(':').map(Number); tarde = ah*60+am >= lim; }
       return `<div class="chip ${tarde?'tarde':'vacio'}"><b>${tn==='matutino'?'Matutino':'Vespertino'}</b><span>${tarde?'Sin registro':'Pendiente'}</span></div>`;
     }
-    return ts.map(x => `<button class="chip ${x.estado}" data-det="${x.id}"><b>${tn==='matutino'?'Matutino':'Vespertino'} · ${esc(x.usuario.split(' ')[0])}</b>
-      <span>${x.estado==='abierto' ? 'Abierto '+hora(x.abierto_en) : x.estado==='cuadrado' ? 'Cuadró' : ESTADOS[x.estado]+' '+money(Math.abs(x.dif_total))}</span></button>`).join('');
+    const h = caja.horarios?.[tn]; let vencido=false;
+    if(h){ const [hh,mm]=h.cierre.split(':').map(Number); const lim=hh*60+mm+h.gracia; const [ah,am]=caja.hora_local.split(':').map(Number); vencido = ah*60+am >= lim; }
+    return ts.map(x => { const ab = x.estado==='abierto', venc = ab && vencido;
+      return `<button class="chip ${venc?'vencido':x.estado}" data-det="${x.id}"><b>${tn==='matutino'?'Matutino':'Vespertino'} · ${esc(x.usuario.split(' ')[0])}</b>
+      <span>${venc ? 'Sin cerrar · pasó la hora' : ab ? 'Abierto '+hora(x.abierto_en) : x.estado==='cuadrado' ? 'Cuadró' : x.estado==='sin_cierre' ? 'Sin cierre' : ESTADOS[x.estado]+' '+money(Math.abs(x.dif_total))}</span></button>`; }).join('');
   };
-  const pend = d.turnos.filter(x => ['faltante','sobrante','revisar'].includes(x.estado));
+  const pend = d.turnos.filter(x => ['faltante','sobrante','revisar','sin_cierre'].includes(x.estado));
+  const viejos = d.pendientes || [];
   $('#pc').innerHTML = `
+    ${viejos.length ? `<div class="aviso mal"><b>${viejos.length===1?'Hay un turno de otro día que nadie cerró':'Hay '+viejos.length+' turnos de otros días que nadie cerró'}.</b> ${viejos.length===1?'Bloquea esa caja hasta que se cierre.':'Bloquean sus cajas hasta que se cierren.'}
+      ${viejos.map(v => `<button class="btn peligro full" style="margin-top:10px" data-forzar="${v.id}">Cerrar ${esc(v.caja)} · ${v.turno} ${fechaCorta(v.fecha)} · ${esc(v.usuario.split(' ')[0])}</button>`).join('')}</div>` : ''}
     ${pend.length ? `<div class="aviso mal"><b>${pend.length} ${pend.length>1?'turnos':'turno'} con diferencia hoy.</b> Toca cada uno para ver comprobantes y explicación.</div>` : ''}
     ${d.cajas.map(c => `<div class="dia"><div class="cab">${esc(c.nombre)} <span class="sub" style="font-weight:400">${esc(c.sucursal)}</span></div>
       <div class="turnos"><div>${chip(c,'matutino')}</div><div>${chip(c,'vespertino')}</div></div></div>`).join('') || '<div class="vacio-msg">No hay cajas configuradas.</div>'}`;
   $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+  $('#pc').querySelectorAll('[data-forzar]').forEach(b => b.onclick = () => cerrarPendiente(b.dataset.forzar));
+}
+
+// El administrador o supervisor cierra un turno que la cajera dejó abierto
+function cerrarPendiente(id, alTerminar){
+  const m = modal(`<h3>Cerrar turno pendiente</h3>
+    <p class="sub">Quedará como <b>"Sin cierre"</b> a nombre de la cajera, con tu nombre y tu nota. Se avisa a la Dirección. Así la caja queda libre para abrir un turno nuevo.</p>
+    <label for="fn">¿Por qué se cierra sin la cajera?</label><textarea id="fn" placeholder="Ej. Se fue sin hacer el corte"></textarea>
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="fno">Cancelar</button><button class="btn peligro" id="fsi">Cerrar turno</button></div>`);
+  m.querySelector('#fno').onclick = () => m.remove();
+  m.querySelector('#fsi').onclick = () => ocupado(m.querySelector('#fsi'), async () => {
+    const nota = m.querySelector('#fn').value.trim();
+    if(!nota) throw new Error('Escribe por qué se cierra sin la cajera.');
+    const pin = await pedirPin('Firmar cierre pendiente'); if(!pin) return;
+    const r = await rpc('con_admin_cerrar_pendiente', {p_turno:id, p_nota:nota, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    m.remove(); toast('Turno cerrado. La caja ya está libre.');
+    if(alTerminar) alTerminar(); vistaPanel('hoy');
+  });
 }
 
 async function panelHistorial(){
@@ -757,6 +785,10 @@ async function detalleTurno(id){
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
+  if(t.estado==='abierto' && t.usuario_id!==S.estado.usuario.id && ['admin','supervisor'].includes(S.estado.usuario.rol)){
+    const b = document.createElement('button'); b.className='btn peligro full'; b.style.marginTop='10px'; b.textContent='Cerrar este turno (la cajera no lo cerró)';
+    m.querySelector('#dc').before(b); b.onclick = () => { m.remove(); cerrarPendiente(t.id); };
+  }
   m.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch, x.dataset.nom));
   urlsFirmadas(t.evidencias.map(e=>e.archivo).filter(esImagen)).then(u => {
     m.querySelectorAll('[data-thumb]').forEach(i => { if(u[i.dataset.thumb]) i.src = u[i.dataset.thumb]; });
