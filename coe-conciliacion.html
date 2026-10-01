@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.4 · 30 sep 2026 · Aviso por WhatsApp desde el celular de la cajera -->
+<!-- COE Conciliación · v2.4.1 · 1 oct 2026 · Comprobantes visibles dentro del panel -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -165,7 +165,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.4 · 30 sep 2026';
+const VERSION = 'v2.4.1 · 1 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -316,10 +316,26 @@ async function subirArchivo(turnoId, tipo, file){
   if(error) throw new Error('No se pudo subir el archivo: ' + error.message);
   return path;
 }
-async function abrirArchivo(path){
-  const {data, error} = await sb.storage.from(BUCKET).createSignedUrl(path, 600);
-  if(error) return toast('No se pudo abrir el archivo.', true);
-  window.open(data.signedUrl, '_blank');
+const esImagen = p => /\.(jpe?g|png|gif|webp|heic)$/i.test(p||'');
+async function urlsFirmadas(paths){
+  const unicos = [...new Set(paths.filter(Boolean))]; if(!unicos.length) return {};
+  const {data, error} = await sb.storage.from(BUCKET).createSignedUrls(unicos, 3600);
+  if(error) throw new Error('No se pudieron cargar los comprobantes: ' + error.message);
+  const m = {}; (data||[]).forEach(d => { if(d.signedUrl) m[d.path] = d.signedUrl; }); return m;
+}
+// Visor dentro de la app (los celulares bloquean pestañas que se abren después de esperar)
+async function abrirArchivo(path, nombre='Comprobante'){
+  const v = modal(`<h3>${esc(nombre)}</h3><div id="visor"><p class="sub">Cargando…</p></div>
+    <button class="btn sec full" id="vc" style="margin-top:14px">Cerrar</button>`);
+  v.querySelector('#vc').onclick = () => v.remove();
+  try{
+    const url = (await urlsFirmadas([path]))[path];
+    if(!url) throw new Error('El archivo no está disponible.');
+    v.querySelector('#visor').innerHTML = esImagen(path)
+      ? `<img src="${url}" alt="${esc(nombre)}" style="width:100%;border-radius:8px;border:1px solid var(--line)">
+         <a class="btn sec full" href="${url}" target="_blank" rel="noopener" style="margin-top:10px">Ver en tamaño completo</a>`
+      : `<p class="sub">Documento PDF.</p><a class="btn full" href="${url}" target="_blank" rel="noopener">Abrir PDF</a>`;
+  }catch(e){ v.querySelector('#visor').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`; }
 }
 
 // ===================== Sesión =====================
@@ -531,7 +547,7 @@ async function vistaTurno(id){
   $('#volver').onclick = cargar;
   $('#gasto').onclick = () => modalGasto(t.id);
   $('#cerrar').onclick = () => cuenta('eoptics') ? vistaCerrar(t) : toast('Primero sube el PDF del corte de eOptics.', true);
-  app.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch));
+  app.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch, 'Comprobante de gasto'));
   app.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const f = inp.files[0]; if(!f) return;
     const lbl = inp.parentElement; lbl.classList.add('cargando'); lbl.firstChild.textContent='Subiendo…';
@@ -738,11 +754,14 @@ async function detalleTurno(id){
     </table>
     <h3 style="margin-top:18px;font-size:17px">Comprobantes</h3>
     <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado}))].map(e =>
-      `<div class="item" data-arch="${esc(e.a)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}</span></div><div class="v">Ver</div></div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
+      `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
-  m.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch));
+  m.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch, x.dataset.nom));
+  urlsFirmadas(t.evidencias.map(e=>e.archivo).filter(esImagen)).then(u => {
+    m.querySelectorAll('[data-thumb]').forEach(i => { if(u[i.dataset.thumb]) i.src = u[i.dataset.thumb]; });
+  }).catch(()=>{});
 }
 
 async function panelAlertas(){
