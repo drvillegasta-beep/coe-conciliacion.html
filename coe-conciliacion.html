@@ -2,12 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v2.4.1 · 1 oct 2026 · Comprobantes visibles dentro del panel -->
+<!-- COE Conciliación · v2.4.2 · 1 oct 2026 · Logo de la clínica -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Caja COE">
 <title>Caja COE</title>
+<link rel="icon" type="image/png" href="assets/coe-icono.png">
+<link rel="apple-touch-icon" href="assets/coe-icono.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -31,8 +33,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--iris);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px}
 header .ver{font-size:12px;font-weight:400;opacity:.7;margin-left:2px}
 header .marca{font-weight:700;font-size:19px;flex:1;display:flex;align-items:center;gap:10px}
-header .ojo{width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center}
-header .ojo::after{content:"";width:9px;height:9px;border-radius:50%;background:#fff}
+header .logo{width:30px;height:30px;flex:none}
 header button{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}
 main{max-width:720px;margin:0 auto;padding:18px 16px 110px}
 h1{font-size:26px;line-height:1.2;margin:4px 0 6px}
@@ -156,7 +157,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 </head>
 <body>
 <header id="cab" hidden>
-  <div class="marca"><span class="ojo" aria-hidden="true"></span><span>Caja COE <span class="ver" data-ver></span></span></div>
+  <div class="marca"><img class="logo" src="assets/coe-marca-blanca.png" alt=""><span>Caja COE <span class="ver" data-ver></span></span></div>
   <button id="btnPanel" hidden>Panel</button>
   <button id="btnSalir">Salir</button>
 </header>
@@ -165,7 +166,7 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v2.4.1 · 1 oct 2026';
+const VERSION = 'v2.4.2 · 1 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -343,11 +344,9 @@ async function vistaLogin(){
   $('#cab').hidden = true;
   app.innerHTML = `
     <div style="max-width:420px;margin:8vh auto 0">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-        <span class="ojo" style="width:40px;height:40px;border-radius:50%;border:5px solid var(--iris);display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:50%;background:var(--iris)"></span></span>
-        <h1 style="margin:0">Caja COE</h1>
-      </div>
-      <p class="sub">Apertura y cierre de turno · ${VERSION}</p>
+      <img src="assets/coe-logo.png" alt="Centro Ocular Especializado" style="display:block;width:220px;max-width:70%;margin:0 auto 18px">
+      <h1 style="margin:0;text-align:center">Caja COE</h1>
+      <p class="sub" style="text-align:center">Apertura y cierre de turno · ${VERSION}</p>
       <div class="bloque">
         <label for="lu">¿Quién eres?</label>
         <div id="luBox"><select id="lu" disabled><option>Cargando…</option></select></div>
