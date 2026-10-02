@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.0 · 2 oct 2026 · Reconocimiento automático, duplicados, pendientes, cierre guiado, cierre del día y reporte en imagen -->
+<!-- COE Conciliación · v3.1 · 2 oct 2026 · Rol de Contabilidad, responsabilidad en cierres de emergencia y entrega de caja con dos PIN -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -214,7 +214,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.0 · 2 oct 2026';
+const VERSION = 'v3.1 · 2 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -486,13 +486,15 @@ async function cargar(){
   try{ S.estado = await rpc('con_estado'); }
   catch(e){ if(S.token) toast(e.message,true); return; }
   $('#cab').hidden = false;
-  const sup = ['admin','supervisor'].includes(S.estado.usuario.rol);
-  $('#btnPanel').hidden = !sup;
+  const rol = S.estado.usuario.rol;
+  const sup = ['admin','supervisor','contabilidad'].includes(rol);
+  $('#btnPanel').hidden = !['admin','supervisor'].includes(rol);
   if(S.irTurno){
     const id = S.irTurno; S.irTurno = null; history.replaceState(null, '', location.pathname);
     if(sup){ vistaPanel('hoy'); return detalleTurno(id); }
     toast('Ese enlace es para supervisión.', true);
   }
+  if(rol==='contabilidad'){ vistaPanel('hoy'); revisarPendientes(false); return; }
   vistaInicio();
   revisarPendientes(false);
 }
@@ -897,12 +899,38 @@ function vistaResultado(r, t, just){
     <div class="resultado ${r.estado}">${r.estado==='cuadrado'?ICO.ok:''}<div class="grande">${txt}</div></div>
     <div class="aviso ${conDif?'mal':''}"><b>${conDif?'Envía el reporte antes de salir.':'Envía el reporte del cierre.'}</b> Toca el botón verde y elige el grupo <b>Caja COE</b>. El reporte lo genera el sistema; no lo cambies.</div>
     <button class="btn full" id="wa" style="background:#1F8F4E;margin:6px 0 4px">${ICO.wa} Enviar reporte por WhatsApp</button>
+    <button class="btn sec full" id="entregar" style="margin-top:8px">Entregar la caja a otra persona</button>
+    <p class="sub" style="text-align:center;margin-top:4px">Si alguien recibe la caja ahora, cuenten juntas y que ponga su PIN aquí.</p>
     ${acciones(`<button class="btn sec" id="ini" ${conDif?'disabled':''}>${conDif?'Primero envía el reporte':'Volver al inicio'}</button>`)}`;
   $('#ini').onclick = () => cargar();
+  $('#entregar').onclick = () => entregarCaja(t);
   $('#wa').onclick = () => ocupado($('#wa'), async () => {
     await compartirReporte(t.id);
     if(conDif) rpc('con_aviso_manual', {p_turno:t.id}).catch(()=>{});
     const b=$('#ini'); if(b){ b.disabled=false; b.textContent='Listo, volver al inicio'; }
+  });
+}
+async function entregarCaja(t){
+  let rs; try{ rs = await rpc('con_receptores', {p_turno:t.id}); }catch(e){ return toast(e.message,true); }
+  if(!rs.length) return toast('Nadie más tiene acceso a esta caja. Pide al administrador una cobertura.', true);
+  const sig = t.turno==='matutino' ? 'comida' : 'vespertino';
+  const m = modal(`<h3>Entregar la caja</h3>
+    <p class="sub">Entregas <b>${money(t.fondo_final_total)}</b> que contaste al cerrar. Cuéntenlo juntas antes de firmar. Desde este momento responde quien recibe.</p>
+    <label for="er">¿Quién recibe?</label><select id="er"><option value="">Elige…</option>${rs.map(r=>`<option value="${r.id}">${esc(r.nombre)}</option>`).join('')}</select>
+    <label>Turno que abre</label><div class="seg" role="group">${['matutino','comida','vespertino'].map(x=>`<button aria-pressed="${x===sig}" data-et="${x}">${NOMBRE_TURNO[x]}</button>`).join('')}</div>
+    <label for="ep">PIN de quien recibe</label><input id="ep" class="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="eno">Cancelar</button><button class="btn" id="esi">Entregar</button></div>`);
+  let turno = sig;
+  m.querySelectorAll('[data-et]').forEach(b => b.onclick = () => { turno = b.dataset.et; m.querySelectorAll('[data-et]').forEach(x => x.setAttribute('aria-pressed', x===b)); });
+  m.querySelector('#eno').onclick = () => m.remove();
+  m.querySelector('#esi').onclick = () => ocupado(m.querySelector('#esi'), async () => {
+    const rec = m.querySelector('#er').value, pin = m.querySelector('#ep').value;
+    if(!rec) throw new Error('Elige quién recibe la caja.');
+    if(pin.length < 4) throw new Error('Quien recibe debe escribir su PIN.');
+    const r = await rpc('con_entregar_caja', {p_turno:t.id, p_receptor:rec, p_turno_nuevo:turno, p_pin_receptor:pin});
+    if(!r.ok) throw new Error(r.error);
+    m.remove(); toast(`Caja entregada a ${r.receptor} con ${money(r.fondo)}. Ella ya tiene su turno abierto.`);
+    const b = $('#entregar'); if(b){ b.disabled = true; b.textContent = 'Caja entregada a ' + r.receptor; }
   });
 }
 const enlaceTurno = id => location.origin + location.pathname + '?turno=' + id;
@@ -937,7 +965,7 @@ async function generarReporte(id){
   let y = 180; rr(56,y,W-112,140,20,col[0]);
   const tit = {cuadrado:'CUADRÓ', faltante:'NO CUADRÓ · FALTANTE', sobrante:'NO CUADRÓ · SOBRANTE', revisar:'NO CUADRÓ · REVISAR', sin_cierre:'SIN CIERRE'}[t.estado] || t.estado;
   x.fillStyle=col[1]; x.font=F(700,28); x.fillText(tit, 92, y+58);
-  x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(`${t.estado==='sin_cierre'?'Responsable':'Cerró'}: ${String(t.usuario||'').split(' ').map(cap).join(' ')}${t.estado==='sin_cierre'?'':' · firmado con PIN'}`, 92, y+98);
+  x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(`${t.estado==='sin_cierre'?'Responsable':'Cerró'}: ${String((t.estado==='sin_cierre'?t.responsable:t.usuario)||'').split(' ').map(cap).join(' ')}${t.estado==='sin_cierre'?'':' · firmado con PIN'}`, 92, y+98);
   x.fillStyle=col[1]; x.font=F(700,64); x.textAlign='right'; x.fillText(t.estado==='sin_cierre'?'—':sg(t.dif_total), W-92, y+92); x.textAlign='left';
   // Efectivo
   y += 166; const filas = [['Fondo inicial',m(t.fondo_inicial_total)],['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Depositado',m(t.real_depositado)],['Gastos de caja chica',m(t.gastos_total)],['Fondo final contado',m(t.fondo_final_total)]];
@@ -1035,10 +1063,11 @@ function vistaPanel(tab){
   clearTimeout(sondeo);
   tabPanel = tab || tabPanel;
   $('#btnPanel').dataset.en='1'; $('#btnPanel').textContent='Caja';
-  const esAdmin = S.estado.usuario.rol==='admin';
-  const tabs = [['hoy','Hoy'],['historial','Historial'],['alertas','Alertas'],['coberturas','Coberturas']];
+  const rolP = S.estado.usuario.rol, esAdmin = rolP==='admin';
+  const tabs = [['hoy','Hoy'],['historial','Historial'],['alertas','Alertas']];
+  if(rolP!=='contabilidad') tabs.push(['coberturas','Coberturas']);
   if(esAdmin) tabs.push(['usuarios','Usuarios'],['ajustes','Ajustes']);
-  app.innerHTML = `<h1>Panel de control</h1>
+  app.innerHTML = `<h1>${rolP==='contabilidad'?'Contabilidad':'Panel de control'}</h1>
     <nav class="tabs">${tabs.map(([k,n])=>`<button data-tab="${k}" aria-current="${k===tabPanel}">${n}</button>`).join('')}</nav>
     <div id="pc"><p class="sub">Cargando…</p></div>`;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => vistaPanel(b.dataset.tab));
@@ -1083,27 +1112,51 @@ const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1).toLowerCase() : '';
 
 // El administrador o supervisor cierra un turno que la cajera dejó abierto
 function cerrarPendiente(id, alTerminar){
+  const conteo = {};
   const m = modal(`<h3>Cerrar turno pendiente</h3>
-    <p class="sub">Quedará como <b>"Sin cierre"</b> a nombre de la cajera, con tu nombre y tu nota. Se avisa a la Dirección. Así la caja queda libre para abrir un turno nuevo.</p>
+    <div class="aviso mal"><b>Al cerrarlo, tú quedas como responsable del dinero de este turno.</b> Cuenta el efectivo que hay en la caja ahora.</div>
+    ${contadorHTML('cntP','Efectivo en caja')}
     <label for="fn">¿Por qué se cierra sin la cajera?</label><textarea id="fn" placeholder="Ej. Se fue sin hacer el corte"></textarea>
-    <div class="fila" style="margin-top:16px"><button class="btn sec" id="fno">Cancelar</button><button class="btn peligro" id="fsi">Cerrar turno</button></div>`);
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="fno">Cancelar</button><button class="btn peligro" id="fsi">Cerrar y hacerme responsable</button></div>`);
+  montarContador('cntP', conteo);
   m.querySelector('#fno').onclick = () => m.remove();
   m.querySelector('#fsi').onclick = () => ocupado(m.querySelector('#fsi'), async () => {
     const nota = m.querySelector('#fn').value.trim();
     if(!nota) throw new Error('Escribe por qué se cierra sin la cajera.');
-    const pin = await pedirPin('Firmar cierre pendiente'); if(!pin) return;
-    const r = await rpc('con_admin_cerrar_pendiente', {p_turno:id, p_nota:nota, p_pin:pin});
+    const pin = await pedirPin('Firmar cierre y responsabilidad', `Efectivo contado: <b>${money(totalConteo(conteo))}</b>.`); if(!pin) return;
+    const r = await rpc('con_admin_cerrar_pendiente', {p_turno:id, p_nota:nota, p_pin:pin, p_conteo:conteoJSON(conteo)});
     if(!r.ok) throw new Error(r.error);
-    m.remove(); toast('Turno cerrado. La caja ya está libre.');
+    m.remove(); toast('Turno cerrado. Quedaste como responsable y la caja ya está libre.');
     if(alTerminar) alTerminar(); vistaPanel('hoy');
   });
+}
+
+// Descarga a Excel (la librería se carga solo cuando se usa)
+let xlsxCargado;
+function cargarXLSX(){
+  if(window.XLSX) return Promise.resolve();
+  return xlsxCargado ||= new Promise((ok, mal) => { const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok;
+    sc.onerror = () => { xlsxCargado = null; mal(new Error('No se pudo cargar el generador de Excel. Revisa tu conexión.')); };
+    document.head.appendChild(sc); });
+}
+async function descargarExcel(desde, hasta){
+  const [d] = await Promise.all([rpc('con_admin_exportar', {p_desde:desde, p_hasta:hasta}), cargarXLSX()]);
+  const wb = XLSX.utils.book_new();
+  const hoja = (filas, nombre, vacio) => { const ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{[vacio]:'Sin registros'}]);
+    if(filas.length) ws['!cols'] = Object.keys(filas[0]).map(k => ({wch: Math.max(10, Math.min(40, k.length + 4))}));
+    XLSX.utils.book_append_sheet(wb, ws, nombre); };
+  hoja(d.turnos, 'Cortes', 'Cortes'); hoja(d.gastos, 'Caja chica', 'Gastos'); hoja(d.cierres_dia, 'Cierres del día', 'Cierres');
+  XLSX.writeFile(wb, `COE-cortes-${desde}-a-${hasta}.xlsx`);
 }
 
 async function panelHistorial(){
   const hasta = hoyISO(), desde = menosDias(hasta, 15);
   $('#pc').innerHTML = `<div class="fila"><div><label for="hd">Desde</label><input id="hd" type="date" value="${desde}"></div><div><label for="hh">Hasta</label><input id="hh" type="date" value="${hasta}"></div></div>
     <label for="he">Mostrar</label><select id="he"><option value="">Todos</option><option value="dif">Solo con diferencia</option><option value="abierto">Abiertos</option></select>
+    <button class="btn sec full" id="hx" style="margin-top:12px">Descargar a Excel</button>
     <div class="bloque lista" id="hl"><p class="sub">Cargando…</p></div>`;
+  $('#hx').onclick = () => ocupado($('#hx'), () => descargarExcel($('#hd').value, $('#hh').value));
   const cargarH = async () => {
     const d = await rpc('con_admin_resumen', {p_desde:$('#hd').value, p_hasta:$('#hh').value});
     const f = $('#he').value;
@@ -1129,6 +1182,10 @@ async function detalleTurno(id){
     ${t.justificacion ? `<div class="aviso ojo"><b>Explicación:</b> ${esc(t.justificacion)}</div>` : ''}
     ${['faltante','sobrante','revisar'].includes(t.estado) ? `<div class="aviso ${t.aviso_manual_en?'':'mal'}">${t.aviso_manual_en ? 'Avisó por WhatsApp a las '+hora(t.aviso_manual_en)+'.' : '<b>No tocó el botón de aviso por WhatsApp.</b>'}</div>` : ''}
     ${t.aclaracion ? `<div class="aviso"><b>Aclaración de la cajera:</b> ${esc(t.aclaracion)}</div>` : ''}
+    ${t.responsable && t.responsable!==t.usuario ? `<div class="aviso mal"><b>Responsable del dinero:</b> ${esc(t.responsable)} (cerró el turno en lugar de la cajera)</div>` : ''}
+    ${t.entregado_a ? `<div class="aviso">Entregó la caja a <b>${esc(t.entregado_a)}</b> con ${money(t.fondo_final_total)}, firmado por ambas.</div>` : ''}
+    ${t.revisado_por_nombre ? `<div class="aviso" style="border-color:var(--ok);background:var(--ok-soft)"><b>Revisado por</b> ${esc(t.revisado_por_nombre)} · ${fechaCorta(t.revisado_en)} ${hora(t.revisado_en)}</div>` : ''}
+    ${(t.observaciones||[]).length ? `<div class="card"><b class="mini">OBSERVACIONES</b>${t.observaciones.map(o=>`<div class="row" style="display:block"><b>${esc(o.usuario)}</b> <span class="sub">${fechaCorta(o.creado)} ${hora(o.creado)}</span><br>${esc(o.texto)}</div>`).join('')}</div>` : ''}
     ${t.nota_apertura ? `<div class="aviso ojo"><b>Nota de apertura:</b> ${esc(t.nota_apertura)} (cierre anterior ${money(t.fondo_previo)})</div>` : ''}
     <table class="desglose">
       ${fila('Fondo inicial', money(t.fondo_inicial_total))}
@@ -1151,7 +1208,21 @@ async function detalleTurno(id){
     const r = document.createElement('button'); r.className='btn full'; r.style.cssText='margin-top:10px;background:#1F8F4E'; r.innerHTML=ICO.wa+' Compartir reporte';
     m.querySelector('#dc').before(r); r.onclick = () => ocupado(r, () => compartirReporte(t.id));
   }
-  if(t.estado==='abierto' && t.usuario_id!==S.estado.usuario.id && ['admin','supervisor'].includes(S.estado.usuario.rol)){
+  const rolD = S.estado.usuario.rol;
+  if(t.estado!=='abierto' && !t.revisado_por_nombre && ['admin','contabilidad'].includes(rolD)){
+    const r = document.createElement('button'); r.className='btn sec full'; r.style.marginTop='10px'; r.textContent='Marcar como revisado';
+    m.querySelector('#dc').before(r); r.onclick = () => ocupado(r, async () => { await rpc('con_revisar_turno', {p_turno:t.id}); toast('Marcado como revisado.'); m.remove(); detalleTurno(t.id); });
+  }
+  if(['admin','supervisor','contabilidad'].includes(rolD)){
+    const o = document.createElement('button'); o.className='btn sec full'; o.style.marginTop='10px'; o.textContent='Agregar observación';
+    m.querySelector('#dc').before(o);
+    o.onclick = () => { const v = modal(`<h3>Observación</h3><p class="sub">Le llega a la Dirección y a la cajera.</p><textarea id="ot" placeholder="Ej. Falta la factura del gasto de $150"></textarea>
+        <div class="fila" style="margin-top:14px"><button class="btn sec" id="ono">Cancelar</button><button class="btn" id="osi">Guardar</button></div>`);
+      v.querySelector('#ono').onclick = () => v.remove();
+      v.querySelector('#osi').onclick = () => ocupado(v.querySelector('#osi'), async () => { const tx = v.querySelector('#ot').value.trim(); if(!tx) throw new Error('Escribe la observación.');
+        await rpc('con_observar', {p_turno:t.id, p_texto:tx}); v.remove(); m.remove(); toast('Observación guardada.'); detalleTurno(t.id); }); };
+  }
+  if(t.estado==='abierto' && t.usuario_id!==S.estado.usuario.id && ['admin','supervisor','contabilidad'].includes(rolD)){
     const b = document.createElement('button'); b.className='btn peligro full'; b.style.marginTop='10px'; b.textContent='Cerrar este turno (la cajera no lo cerró)';
     m.querySelector('#dc').before(b); b.onclick = () => { m.remove(); cerrarPendiente(t.id); };
   }
@@ -1192,7 +1263,7 @@ async function panelCoberturas(){
 
 async function panelUsuarios(){
   const [us, cat] = await Promise.all([rpc('con_admin_usuarios'), rpc('con_admin_catalogo')]);
-  const rolN = {admin:'Administrador', supervisor:'Supervisor', cajero:'Cajero'};
+  const rolN = {admin:'Administrador', supervisor:'Supervisor', contabilidad:'Contabilidad', cajero:'Cajero'};
   $('#pc').innerHTML = `<button class="btn full" id="nu">Agregar usuario</button>
     <div class="bloque lista">${us.map(u => `<div class="item" data-u="${u.id}"><div class="t"><b>${esc(u.nombre)}${u.activo?'':' (inactivo)'}</b>
       <span>${esc(u.usuario)}, ${rolN[u.rol]}${u.bloqueado?', PIN bloqueado':''}${u.debe_cambiar?', aún no crea su contraseña':''}</span></div>
@@ -1207,7 +1278,7 @@ function formUsuario(u, cat){
     <label for="un">Nombre completo</label><input id="un" type="text" value="${esc(u.nombre)}">
     <label for="uu">Usuario para entrar</label><input id="uu" type="text" autocapitalize="none" value="${esc(u.usuario)}">
     <label for="ut">WhatsApp (10 dígitos)</label><input id="ut" type="tel" value="${esc(u.telefono)}">
-    <label for="ur">Rol</label><select id="ur">${['cajero','supervisor','admin'].map(r=>`<option value="${r}" ${u.rol===r?'selected':''}>${{cajero:'Cajero',supervisor:'Supervisor',admin:'Administrador'}[r]}</option>`).join('')}</select>
+    <label for="ur">Rol</label><select id="ur">${['cajero','supervisor','contabilidad','admin'].map(r=>`<option value="${r}" ${u.rol===r?'selected':''}>${{cajero:'Cajero',supervisor:'Supervisor',contabilidad:'Contabilidad (solo consulta)',admin:'Administrador'}[r]}</option>`).join('')}</select>
     <label>Sucursales</label>${cat.sucursales.map(s=>`<label class="check" style="margin-top:6px"><input type="checkbox" data-s="${s.id}" ${u.sucursales.includes(s.id)?'checked':''}> ${esc(s.nombre)}</label>`).join('')}
     <label for="up">${nuevo?'Contraseña temporal':'Nueva contraseña temporal (opcional)'}</label><input id="up" type="text" autocomplete="off">
     <label for="ui">${nuevo?'PIN temporal':'Nuevo PIN temporal (opcional)'}</label><input id="ui" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
