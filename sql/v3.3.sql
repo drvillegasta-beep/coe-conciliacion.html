@@ -1,0 +1,8 @@
+-- COE Conciliación · v3.3 (aplicado el 02/10/2026)
+-- Caja de clínica con "depósito directo": sin fondo, el efectivo se deposita sin ticket durante el día.
+-- En el turno se toma como depositado (efectivo eOptics − gastos) y se verifica en el cierre del día:
+-- corte del depositador = depósitos con ticket de farmacia + efectivo eOptics de los turnos de clínica.
+-- Cambios: con_cajas.modo_efectivo; con_estado y con_turno devuelven 'modo'; con_abrir_turno (fondo 0);
+-- con_cerrar_turno (rd = pe − gastos, ff = 0); con_dia y con_dia_cerrar (suman el efectivo de clínica y
+-- excluyen tickets de depósito de cajas con depósito directo). Corrección del faltante falso del 02/10.
+-- Texto completo en las migraciones con_v3_3_deposito_directo_clinica y con_v3_3_1_no_duplicar_clinica.
