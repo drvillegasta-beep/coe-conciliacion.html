@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.1 · 2 oct 2026 · Rol de Contabilidad, responsabilidad en cierres de emergencia y entrega de caja con dos PIN -->
+<!-- COE Conciliación · v3.3 · 2 oct 2026 · Clínica con depósito directo; duplicados de eOptics por número de corte -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -214,7 +214,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.1 · 2 oct 2026';
+const VERSION = 'v3.3 · 2 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -717,11 +717,11 @@ function vistaAbrir(caja){
         <button aria-pressed="${st.turno==='comida'}" data-t="comida">Comida</button>
         <button aria-pressed="${st.turno==='vespertino'}" data-t="vespertino">Vespertino</button>
       </div>
-      <h2>Cuenta el fondo con el que abres</h2>
-      ${contadorHTML('cnt','Fondo inicial')}
+      ${caja.modo==='deposito_directo' ? `<div class="aviso" style="margin-top:16px">Esta caja no maneja fondo: el efectivo se deposita directo en el depositador durante el día. Solo elige tu turno y firma.</div>`
+        : `<h2>Cuenta el fondo con el que abres</h2>${contadorHTML('cnt','Fondo inicial')}`}
       <div id="notaBox"></div>
       ${acciones('<button class="btn" id="firmar">Firmar apertura</button>')}`;
-    montarContador('cnt', st.conteo);
+    if(caja.modo!=='deposito_directo') montarContador('cnt', st.conteo);
     $('#volver').onclick = vistaInicio;
     app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { st.turno=b.dataset.t; app.querySelectorAll('[data-t]').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
     $('#firmar').onclick = firmar;
@@ -730,7 +730,7 @@ function vistaAbrir(caja){
     const nota = $('#nota')?.value ?? null;
     if(st.nota !== null && !nota.trim()) throw new Error('Explica la diferencia del fondo para continuar.');
     const total = totalConteo(st.conteo);
-    const pin = await pedirPin('Firmar apertura', `Fondo inicial de <b>${money(total)}</b>, turno ${turnoTxt(st.turno)}.`);
+    const pin = await pedirPin('Firmar apertura', caja.modo==='deposito_directo' ? `Turno ${turnoTxt(st.turno)}.` : `Fondo inicial de <b>${money(total)}</b>, turno ${turnoTxt(st.turno)}.`);
     if(!pin) return;
     const r = await rpc('con_abrir_turno', {p_caja:caja.id, p_turno:st.turno, p_fondo:conteoJSON(st.conteo), p_nota:nota, p_pin:pin});
     if(r.ok){ toast('Turno abierto.'); await cargar(); return vistaTurno(r.turno_id); }
@@ -765,9 +765,11 @@ async function vistaTurno(id){
   const s = sumarLecturas(evs);
   app.innerHTML = `
     <div class="cabturno"><div><h1>${esc(t.caja)}</h1><p class="sub">Turno ${turnoTxt(t.turno)} · desde ${hora(t.abierto_en)}</p></div><button class="btn sec chico" id="volver">Inicio</button></div>
-    <div class="card dos"><div><span class="sub">Fondo inicial</span><b>${money(t.fondo_inicial_total)}</b></div><div style="text-align:right"><span class="sub">Depositado</span><b>${money(s.rd)}</b></div></div>
-    <div style="margin-top:14px">${botonSubir('subT')}</div>
-    <div class="card">${evs.length ? evs.map(e=>filaDoc(e,true)).join('') : '<p class="sub" style="margin:0;text-align:center">Sube cada ticket de depósito al momento, y al final el PDF del corte de eOptics.</p>'}</div>
+    ${t.modo==='deposito_directo'
+      ? `<div class="card dos"><div><span class="sub">Efectivo</span><b style="font-size:16px">Depósito directo</b></div><div style="text-align:right"><span class="sub">Se verifica en</span><b style="font-size:16px">Cierre del día</b></div></div>`
+      : `<div class="card dos"><div><span class="sub">Fondo inicial</span><b>${money(t.fondo_inicial_total)}</b></div><div style="text-align:right"><span class="sub">Depositado</span><b>${money(s.rd)}</b></div></div>`}
+    <div style="margin-top:14px">${t.modo==='deposito_directo' ? botonSubir('subT','Subir comprobante','Corte PARCIAL de eOptics de tu turno; voucher o transferencias si hubo') : botonSubir('subT')}</div>
+    <div class="card">${evs.length ? evs.map(e=>filaDoc(e,true)).join('') : `<p class="sub" style="margin:0;text-align:center">${t.modo==='deposito_directo' ? 'Al terminar tu turno, sube el corte PARCIAL de eOptics.' : 'Sube cada ticket de depósito al momento, y al final el PDF del corte de eOptics.'}</p>`}</div>
     <div class="card fila-card" id="gasto"><div><b>Gastos de caja chica</b><p class="sub" style="margin:0">${t.gastos.length ? t.gastos.length+' · '+money(t.gastos_total) : 'Ninguno'}</p></div><span class="link">+ Agregar</span></div>
     ${t.gastos.length ? `<div class="card">${t.gastos.map(g=>`<div class="row" ${g.archivo?`data-gasto="${esc(g.archivo)}"`:''}><span>${esc(g.concepto)} <span class="sub">${hora(g.creado)}</span></span><b>${money(g.monto)}</b></div>`).join('')}</div>` : ''}
     ${acciones('<button class="btn" id="cerrar">Cerrar turno</button>')}`;
@@ -803,19 +805,25 @@ function modalGasto(turnoId){
 }
 
 // ===================== Cierre guiado =====================
-function pasos(n){
-  const nom = ['Fondo','Comprobantes','Firmar'];
+function pasos(n, directo){
+  const nom = directo ? ['Comprobantes','Firmar'] : ['Fondo','Comprobantes','Firmar'];
+  if(directo) n = n - 1;
   return `<div class="steps">${nom.map((_,i)=>`<div class="${i<n-1?'done':i===n-1?'on':''}"></div>`).join('')}</div>
     <div class="stl">${nom.map((x,i)=> i<n-1 ? `<span>✓ ${x}</span>` : i===n-1 ? `<b style="color:var(--iris)">${x}</b>` : `<span>${x}</span>`).join('')}</div>`;
 }
 function vistaCerrar(id){
-  const st = { paso:1, conteo:{}, t:null, evs:[] };
+  const st = { paso:1, conteo:{}, t:null, evs:[], directo:false };
   const cargarTurno = async () => {
     st.t = await rpc('con_turno', {p_turno:id});
     st.evs = (await rpc('con_lectura', {p_turno:id})).filter(e => !['gasto','otro'].includes(e.tipo) && e.estado!=='descartado');
   };
   const pintar = async () => {
     clearTimeout(sondeo);
+    if(st.paso===1 && st.directo===false && st.t===null){
+      try{ await cargarTurno(); }catch(e){ return toast(e.message,true); }
+      st.directo = st.t.modo==='deposito_directo';
+      if(st.directo){ st.paso = 2; return pintar(); }
+    }
     if(st.paso===1){
       app.innerHTML = `
         <div class="cabturno"><h1>Cerrar turno</h1><button class="btn sec chico" id="volver">Volver</button></div>
@@ -835,7 +843,7 @@ function vistaCerrar(id){
       const falta = !s.eo ? (st.evs.some(e=>e.estado==='pendiente') ? '' : 'eoptics') : '';
       app.innerHTML = `
         <div class="cabturno"><h1>Cerrar turno</h1><button class="btn sec chico" id="atras">Atrás</button></div>
-        ${pasos(2)}
+        ${pasos(2, st.directo)}
         ${falta==='eoptics' ? `<div class="card centro">
             <div class="ic grande-ic">${ICO.doc}</div>
             <b style="display:block;font-size:19px;margin-top:12px">Sube el corte de eOptics</b>
@@ -844,12 +852,12 @@ function vistaCerrar(id){
           : `<div style="margin-top:14px">${botonSubir('subC','Subir otro comprobante','¿Te faltó algún ticket? Súbelo antes de firmar')}</div>`}
         <div class="card">${st.evs.length ? st.evs.map(e=>filaDoc(e,true)).join('') : '<p class="sub" style="margin:0">Sin comprobantes.</p>'}</div>
         <div class="card"><b class="mini">LO QUE YA TIENES</b>
-          <div class="sumrow"><span>Fondo final contado</span><b>${money(totalConteo(st.conteo))}</b></div>
-          <div class="sumrow"><span>Depósitos (${s.nDep})</span><b>${money(s.rd)}</b></div>
+          ${st.directo ? '' : `<div class="sumrow"><span>Fondo final contado</span><b>${money(totalConteo(st.conteo))}</b></div>
+          <div class="sumrow"><span>Depósitos (${s.nDep})</span><b>${money(s.rd)}</b></div>`}
           ${s.nTr?`<div class="sumrow"><span>Transferencias (${s.nTr})</span><b>${money(s.rb)}</b></div>`:''}
           ${s.eo?`<div class="sumrow"><span>Efectivo según eOptics</span><b>${money(s.pe)}</b></div>`:''}</div>
         ${acciones(`<button class="btn" id="sig" ${listo?'':'disabled'}>${s.pendientes?'Leyendo comprobantes…':s.errores?'Resuelve los comprobantes con error':!s.eo?'Falta el corte de eOptics':'Siguiente'}</button>`)}`;
-      $('#atras').onclick = () => { st.paso=1; pintar(); };
+      $('#atras').onclick = () => { if(st.directo) return vistaTurno(id); st.paso=1; pintar(); };
       $('#subC').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast('Subiendo…'); await subirComprobantes(fs,{turno:id}); pintar(); };
       conectarDocs(app, pintar);
       $('#sig').onclick = () => { st.paso=3; pintar(); window.scrollTo(0,0); };
@@ -858,18 +866,19 @@ function vistaCerrar(id){
     }
     // Paso 3: vista previa del resultado y firma
     const tol = Number(t.tolerancia)||0, ff = totalConteo(st.conteo), g = Number(t.gastos_total)||0;
-    const de = (s.rd + ff + g) - (Number(t.fondo_inicial_total) + s.pe), dt = s.rv - s.pt, dtr = s.rb - s.ptr, dtot = de+dt+dtr;
+    const de = st.directo ? 0 : (s.rd + ff + g) - (Number(t.fondo_inicial_total) + s.pe), dt = s.rv - s.pt, dtr = s.rb - s.ptr, dtot = de+dt+dtr;
     const estado = dtot < -tol ? 'faltante' : dtot > tol ? 'sobrante' : Math.max(Math.abs(de),Math.abs(dt),Math.abs(dtr)) > tol ? 'revisar' : 'cuadrado';
     const titulo = {cuadrado:'Cuadra', faltante:'Faltante', sobrante:'Sobrante', revisar:'No cuadra'}[estado];
     app.innerHTML = `
       <div class="cabturno"><h1>Cerrar turno</h1><button class="btn sec chico" id="atras">Atrás</button></div>
-      ${pasos(3)}
+      ${pasos(3, st.directo)}
       <div class="resultado ${estado}">${estado==='cuadrado'?ICO.ok:''}<div class="grande">${titulo}</div><div>${estado==='cuadrado'?'Diferencia '+money(0):money(Math.abs(dtot))}</div></div>
       <div class="card">
         <div class="row"><span>Efectivo según eOptics</span><b>${money(s.pe)}</b></div>
-        <div class="row"><span>Depositado</span><b>${money(s.rd)}</b></div>
+        ${st.directo ? `<div class="row"><span>Efectivo</span><b>Depósito directo · se verifica en el cierre del día</b></div>${g?`<div class="row"><span>Gastos de caja chica</span><b>${money(g)}</b></div>`:''}`
+        : `<div class="row"><span>Depositado</span><b>${money(s.rd)}</b></div>
         <div class="row"><span>Gastos de caja chica</span><b>${money(g)}</b></div>
-        <div class="row"><span>Fondo inicial → final</span><b>${money(t.fondo_inicial_total)} → ${money(ff)}</b></div>
+        <div class="row"><span>Fondo inicial → final</span><b>${money(t.fondo_inicial_total)} → ${money(ff)}</b></div>`}
         ${(s.ptr||s.rb)?`<div class="row"><span>Transferencias</span><b>${money(s.ptr)} / ${money(s.rb)}</b></div>`:''}
         ${(s.pt||s.rv)?`<div class="row"><span>Tarjeta</span><b>${money(s.pt)} / ${money(s.rv)}</b></div>`:''}</div>
       ${estado!=='cuadrado' ? `<label for="just">Explica la diferencia</label><textarea id="just" placeholder="Qué pasó"></textarea>
@@ -879,7 +888,7 @@ function vistaCerrar(id){
     $('#firmar').onclick = () => ocupado($('#firmar'), async () => {
       const just = $('#just') ? $('#just').value.trim() : null;
       if(estado!=='cuadrado' && !just) throw new Error('Escribe la explicación de la diferencia.');
-      const pin = await pedirPin('Firmar cierre', `Fondo final de <b>${money(ff)}</b>.`); if(!pin) return;
+      const pin = await pedirPin('Firmar cierre', st.directo ? 'Confirmas el cierre de tu turno.' : `Fondo final de <b>${money(ff)}</b>.`); if(!pin) return;
       const r = await rpc('con_cerrar_turno', {p_turno:id, p_fondo_final:conteoJSON(st.conteo), p_justificacion:just, p_pin:pin});
       if(r.code==='JUSTIFICAR') throw new Error('El sistema detectó una diferencia. Escribe la explicación y vuelve a firmar.');
       if(!r.ok) throw new Error(r.error || 'No se pudo cerrar el turno.');
@@ -968,7 +977,9 @@ async function generarReporte(id){
   x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(`${t.estado==='sin_cierre'?'Responsable':'Cerró'}: ${String((t.estado==='sin_cierre'?t.responsable:t.usuario)||'').split(' ').map(cap).join(' ')}${t.estado==='sin_cierre'?'':' · firmado con PIN'}`, 92, y+98);
   x.fillStyle=col[1]; x.font=F(700,64); x.textAlign='right'; x.fillText(t.estado==='sin_cierre'?'—':sg(t.dif_total), W-92, y+92); x.textAlign='left';
   // Efectivo
-  y += 166; const filas = [['Fondo inicial',m(t.fondo_inicial_total)],['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Depositado',m(t.real_depositado)],['Gastos de caja chica',m(t.gastos_total)],['Fondo final contado',m(t.fondo_final_total)]];
+  y += 166; const directo = t.modo==='deposito_directo';
+  const filas = directo ? [['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Gastos de caja chica',m(t.gastos_total)],['Depósito directo en el depositador',m(t.real_depositado)]]
+    : [['Fondo inicial',m(t.fondo_inicial_total)],['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Depositado',m(t.real_depositado)],['Gastos de caja chica',m(t.gastos_total)],['Fondo final contado',m(t.fondo_final_total)]];
   const hEf = 70 + filas.length*50 + 56; rr(56,y,W-112,hEf,20,'#fff','#D5DDDF');
   x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('EFECTIVO', 92, y+46);
   let yy = y+64; x.font=F(400,28);
@@ -976,7 +987,8 @@ async function generarReporte(id){
     x.fillStyle='#18232C'; x.font=F(400,28); x.fillText(a, 92, yy+36); x.font=F(700,28); x.textAlign='right'; x.fillText(b, W-92, yy+36); x.textAlign='left'; yy+=50; }
   x.beginPath(); x.moveTo(92,yy); x.lineTo(W-92,yy); x.stroke();
   x.fillStyle = Math.abs(Number(t.dif_efectivo)||0) > Number(t.tolerancia||0) ? '#B42318' : '#25734A'; x.font=F(700,28);
-  x.fillText('Diferencia en efectivo', 92, yy+40); x.textAlign='right'; x.fillText(sg(t.dif_efectivo), W-92, yy+40); x.textAlign='left';
+  if(directo){ x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText('El efectivo se verifica en el cierre del día', 92, yy+40); }
+  else { x.fillText('Diferencia en efectivo', 92, yy+40); x.textAlign='right'; x.fillText(sg(t.dif_efectivo), W-92, yy+40); x.textAlign='left'; }
   // Otras formas
   y += hEf + 22; rr(56,y,W-112,170,20,'#fff','#D5DDDF');
   x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('OTRAS FORMAS DE PAGO', 92, y+46);
@@ -1030,9 +1042,9 @@ async function vistaDia(suc){
   const coincide = dif!==null && Math.abs(dif) <= Number(d.tolerancia||0);
   app.innerHTML = `
     <div class="cabturno"><div><h1>Cierre del día</h1><p class="sub">${esc(d.sucursal)} · ${fechaCorta(d.fecha)}</p></div><button class="btn sec chico" id="volver">Inicio</button></div>
-    <p class="sub" style="margin-top:10px">Sube el corte final del depositador. El sistema lo compara con la suma de los depósitos de todos los turnos de hoy.</p>
-    <div class="card">${d.turnos.length ? d.turnos.map(x=>`<div class="row"><span>${esc(x.caja)} · ${NOMBRE_TURNO[x.turno]}${x.estado==='abierto'?' <span class="chip abierto">Abierto</span>':''}</span><b>${money(x.depositos)}</b></div>`).join('') : '<p class="sub" style="margin:0">Hoy no hay turnos.</p>'}
-      <div class="row" style="font-size:16px"><b>Suma de depósitos</b><b>${money(suma)}</b></div></div>
+    <p class="sub" style="margin-top:10px">Sube el corte final del depositador. El sistema lo compara con los depósitos de farmacia más el efectivo que eOptics registró en los turnos de clínica.</p>
+    <div class="card">${d.turnos.length ? d.turnos.map(x=>`<div class="row"><span>${esc(x.caja)} · ${NOMBRE_TURNO[x.turno]}${x.directo?' <span class="sub">(efectivo eOptics)</span>':''}${x.estado==='abierto'?' <span class="chip abierto">Abierto</span>':''}</span><b>${money(x.depositos)}</b></div>`).join('') : '<p class="sub" style="margin:0">Hoy no hay turnos.</p>'}
+      <div class="row" style="font-size:16px"><b>Total esperado en el depositador</b><b>${money(suma)}</b></div></div>
     ${abiertos.length ? `<div class="aviso mal">Aún hay ${abiertos.length===1?'un turno abierto':abiertos.length+' turnos abiertos'}. Deben cerrarse antes de firmar el cierre del día.</div>` : ''}
     ${firmado ? '' : `<div style="margin-top:12px">${botonSubir('subD','Subir corte final del depositador','El ticket que imprime el depositador al final del día')}</div>`}
     ${evs.length ? `<div class="card">${evs.map(e=>filaDoc(e,!firmado)).join('')}</div>` : ''}
