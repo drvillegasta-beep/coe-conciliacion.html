@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.4 · 11 oct 2026 · Caja de pagos de Contabilidad vinculada a COE Finanzas -->
+<!-- COE Conciliación · v3.5 · 11 oct 2026 · Cortes retroactivos desde el 01/01/2026 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -189,6 +189,8 @@ table.desglose td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .chip.faltante,.chip.sin_cierre{background:var(--bad-soft);color:var(--bad)}
 .chip.sobrante,.chip.revisar{background:var(--warn-soft);color:var(--warn)}
 .chip.abierto{background:var(--iris-soft);color:var(--iris)}
+.chip.retro{background:var(--warn-soft);color:var(--warn)}
+.etq.retro{background:var(--warn-soft);color:var(--warn)}
 .pend{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
 .full-btn{display:flex;gap:10px;align-items:center;width:100%;text-align:left;cursor:pointer;font:inherit;color:var(--ink);border-top:0;border-right:0;border-bottom:0}
 .caja .ic{width:42px;height:42px}
@@ -214,7 +216,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.4 · 11 oct 2026';
+const VERSION = 'v3.5 · 11 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -226,7 +228,7 @@ const EVID = {
   eoptics:{n:'Corte de eOptics'}, depositador:{n:'Depósito'}, transferencia:{n:'Transferencia'},
   voucher:{n:'Voucher de terminal'}, auto:{n:'Comprobante'}, corte_dia:{n:'Corte final del depositador'}
 };
-const ESTADOS = {cuadrado:'Cuadró', faltante:'Faltante', sobrante:'Sobrante', revisar:'Revisar', abierto:'Abierto', sin_cierre:'Sin cierre'};
+const ESTADOS = {cuadrado:'Cuadró', faltante:'Faltante', sobrante:'Sobrante', revisar:'Revisar', abierto:'Abierto', sin_cierre:'Sin cierre', retro:'Borrador retroactivo'};
 
 // ===================== Utilidades =====================
 const $ = s => document.querySelector(s);
@@ -1232,6 +1234,110 @@ function conectarIngresos(raiz){
   raiz.querySelectorAll('[data-ingno]').forEach(b => b.onclick = () => accion(b, false));
 }
 
+// ===================== Cortes retroactivos (desde 01/01/2026) =====================
+let catRetro = null;
+async function panelRetro(){
+  const d = catRetro = await rpc('con_retro_lista');
+  const borr = d.turnos.filter(x => x.estado==='retro'), hechos = d.turnos.filter(x => x.estado!=='retro');
+  const item = x => `<div class="item" data-retro="${x.id}" data-est="${x.estado}"><div class="t"><b>${fechaCorta(x.fecha)} · ${esc(x.caja)} · ${ABREV_TURNO[x.turno]||x.turno}</b>
+      <span>${esc(x.usuario)} · ${x.docs} ${x.docs==1?'comprobante':'comprobantes'} · subido por ${esc(cap(String(x.retro_por||'').split(' ')[0]))} el ${fechaCorta(x.retro_en)}</span></div>
+      <div class="v ${x.estado}">${x.estado==='retro'?'Continuar':x.estado==='cuadrado'?'Cuadró':money(x.dif_total)}</div></div>`;
+  $('#pc').innerHTML = `
+    <p class="sub">Cortes de días anteriores (desde el 01/01/2026) que no se hicieron en el sistema. Se guardan como borrador para subir los comprobantes en uno o varios momentos, y al cerrarlos quedan marcados como <b>retroactivos</b>.</p>
+    <button class="btn full" id="rnuevo">Nuevo corte retroactivo</button>
+    <h2>En captura</h2>
+    <div class="bloque lista">${borr.map(item).join('') || '<div class="vacio-msg">No hay borradores.</div>'}</div>
+    <h2>Cerrados (últimos 90 días)</h2>
+    <div class="bloque lista">${hechos.map(item).join('') || '<div class="vacio-msg">Aún no hay cortes retroactivos.</div>'}</div>`;
+  $('#rnuevo').onclick = () => nuevoRetro(d);
+  $('#pc').querySelectorAll('[data-retro]').forEach(x => x.onclick = () => x.dataset.est==='retro' ? vistaRetro(x.dataset.retro) : detalleTurno(x.dataset.retro));
+}
+
+function nuevoRetro(d){
+  const ayer = menosDias(hoyISO(), 1);
+  const st = { turno:'matutino' };
+  const m = modal(`<h3>Nuevo corte retroactivo</h3>
+    <label for="nrc">Caja</label><select id="nrc"><option value="">Elige…</option>${d.cajas.map(c=>`<option value="${c.id}">${esc(c.nombre)}${d.cajas.some(o=>o.sucursal!==c.sucursal)?' · '+esc(c.sucursal):''}</option>`).join('')}</select>
+    <label for="nrf">Fecha del corte</label><input id="nrf" type="date" min="${d.minimo}" max="${ayer}">
+    <label>Turno</label><div class="seg" role="group">${['matutino','comida','vespertino'].map(x=>`<button aria-pressed="${x===st.turno}" data-nt="${x}">${NOMBRE_TURNO[x]}</button>`).join('')}</div>
+    <label for="nru">¿Quién trabajó ese turno?</label><select id="nru"><option value="">Elige…</option></select>
+    <div id="nrfondo"><label for="nri">Fondo inicial de ese turno</label><input id="nri" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+      <p class="sub" style="margin-top:4px">Si no se conoce, deja el mismo fondo al inicio y al final.</p></div>
+    <label for="nrn">Nota (opcional)</label><input id="nrn" type="text" placeholder="Ej. Se recuperaron los tickets del archivo">
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="nrno">Cancelar</button><button class="btn" id="nrsi">Crear borrador</button></div>`);
+  const usuarios = () => { const c = d.cajas.find(x => x.id===m.querySelector('#nrc').value);
+    const us = d.usuarios.filter(u => !c || !u.sucursales.length || u.sucursales.includes(c.sucursal_id));
+    const sel = m.querySelector('#nru'), v = sel.value;
+    sel.innerHTML = '<option value="">Elige…</option>' + us.map(u=>`<option value="${u.id}" ${u.id===v?'selected':''}>${esc(u.nombre)}</option>`).join('');
+    m.querySelector('#nrfondo').hidden = c?.modo==='deposito_directo'; };
+  usuarios();
+  m.querySelector('#nrc').onchange = usuarios;
+  m.querySelectorAll('[data-nt]').forEach(b => b.onclick = () => { st.turno = b.dataset.nt; m.querySelectorAll('[data-nt]').forEach(x => x.setAttribute('aria-pressed', x===b)); });
+  m.querySelector('#nrno').onclick = () => m.remove();
+  m.querySelector('#nrsi').onclick = () => ocupado(m.querySelector('#nrsi'), async () => {
+    const caja = m.querySelector('#nrc').value, fecha = m.querySelector('#nrf').value, caj = m.querySelector('#nru').value;
+    if(!caja) throw new Error('Elige la caja.');
+    if(!fecha || fecha < d.minimo || fecha > ayer) throw new Error('La fecha debe ser entre el 01/01/2026 y ayer.');
+    if(!caj) throw new Error('Elige quién trabajó ese turno.');
+    const r = await rpc('con_retro_crear', {p_caja:caja, p_fecha:fecha, p_turno:st.turno, p_cajera:caj,
+      p_fondo_ini:Number(m.querySelector('#nri').value)||0, p_nota:m.querySelector('#nrn').value.trim()||null});
+    m.remove(); toast('Borrador creado. Sube los comprobantes cuando los tengas.'); vistaRetro(r.turno_id);
+  });
+}
+
+async function vistaRetro(id){
+  clearTimeout(sondeo);
+  let t, evs;
+  try{ t = await rpc('con_turno', {p_turno:id}); evs = await rpc('con_lectura', {p_turno:id}); }catch(e){ return toast(e.message,true); }
+  if(t.estado!=='retro'){ vistaPanel('retro'); return detalleTurno(id); }
+  $('#btnPanel').dataset.en='1'; $('#btnPanel').textContent='Caja';
+  const vis = evs.filter(e => !['gasto','otro'].includes(e.tipo) && e.estado!=='descartado');
+  const s = sumarLecturas(vis), directo = t.modo==='deposito_directo', tol = Number(t.tolerancia)||0;
+  const fi = Number($('#rfi')?.value ?? t.fondo_inicial_total)||0, ff = Number($('#rff')?.value ?? t.fondo_final_total ?? t.fondo_inicial_total)||0;
+  const just = $('#rjust')?.value || '';
+  const rd = directo ? s.pe : s.rd;
+  const de = directo ? 0 : (rd + ff) - (fi + s.pe), dt = s.rv - s.pt, dtr = s.rb - s.ptr, dtot = de + dt + dtr;
+  const estado = dtot < -tol ? 'faltante' : dtot > tol ? 'sobrante' : Math.max(Math.abs(de),Math.abs(dt),Math.abs(dtr)) > tol ? 'revisar' : 'cuadrado';
+  const listo = s.eo && !s.pendientes && !s.errores;
+  app.innerHTML = `
+    <div class="cabturno"><div><h1>Corte retroactivo</h1><p class="sub">${esc(t.caja)} · ${NOMBRE_TURNO[t.turno]} ${fechaCorta(t.fecha)} · ${esc(t.usuario)}</p></div><button class="btn sec chico" id="volver">Volver</button></div>
+    <div class="aviso ojo"><b>Borrador retroactivo.</b> Puedes salir y seguir después; lo encuentras en Panel → Retroactivos. Creado por ${esc(t.retro_por_nombre||'')} el ${fechaCorta(t.retro_en)}.</div>
+    ${directo ? '' : `<div class="fila" style="align-items:flex-end">
+      <div style="flex:1"><label for="rfi">Fondo inicial</label><input id="rfi" type="number" inputmode="decimal" min="0" step="0.01" value="${fi}"></div>
+      <div style="flex:1"><label for="rff">Fondo final</label><input id="rff" type="number" inputmode="decimal" min="0" step="0.01" value="${ff}"></div></div>`}
+    <div style="margin-top:14px">${botonSubir('subR','Subir comprobantes', directo ? 'Corte de eOptics de ese turno; voucher o transferencias si hubo' : 'Corte de eOptics de ese turno, tickets de depósito, voucher y transferencias')}</div>
+    <div class="card">${vis.length ? vis.map(e=>filaDoc(e,true)).join('') : '<p class="sub" style="margin:0;text-align:center">Aún no hay comprobantes. Puedes subirlos poco a poco.</p>'}</div>
+    <div class="card"><b class="mini">CÓMO VA</b>
+      ${s.eo ? `<div class="sumrow"><span>Efectivo según eOptics</span><b>${money(s.pe)}</b></div>
+        ${directo ? '<div class="sumrow"><span>Depósito directo</span><b>se toma igual al efectivo</b></div>' : `<div class="sumrow"><span>Depósitos (${s.nDep})</span><b>${money(s.rd)}</b></div>`}
+        ${(s.pt||s.rv)?`<div class="sumrow"><span>Tarjeta eOptics / voucher</span><b>${money(s.pt)} / ${money(s.rv)}</b></div>`:''}
+        ${(s.ptr||s.rb)?`<div class="sumrow"><span>Transferencia eOptics / banco</span><b>${money(s.ptr)} / ${money(s.rb)}</b></div>`:''}
+        <div class="sumrow"><span><b>Resultado</b></span><span class="chip ${estado}">${estado==='cuadrado'?'Cuadra':ESTADOS[estado]+' '+money(Math.abs(dtot))}</span></div>`
+      : '<p class="sub" style="margin:6px 0 0">Falta el corte de eOptics de ese turno.</p>'}</div>
+    ${listo && estado!=='cuadrado' ? `<label for="rjust">Explica la diferencia</label><textarea id="rjust" placeholder="Qué se sabe de ese día">${esc(just)}</textarea>` : ''}
+    <button class="btn sec full" id="rborrar" style="margin-top:14px;color:var(--bad)">Borrar este borrador</button>
+    ${acciones(`<button class="btn" id="rcerrar" ${listo?'':'disabled'}>${s.pendientes?'Leyendo comprobantes…':s.errores?'Resuelve los comprobantes con error':!s.eo?'Falta el corte de eOptics':'Cerrar corte retroactivo'}</button>`)}`;
+  const guardar = async () => { if(directo) return;
+    try{ await rpc('con_retro_guardar', {p_turno:id, p_fondo_ini:Number($('#rfi').value)||0, p_fondo_fin:Number($('#rff').value)||0}); }catch(e){ toast(e.message,true); } };
+  if(!directo){ ['rfi','rff'].forEach(k => $('#'+k).onchange = async () => { await guardar(); vistaRetro(id); }); }
+  $('#volver').onclick = () => { clearTimeout(sondeo); vistaPanel('retro'); };
+  $('#subR').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast(fs.length>1?'Subiendo '+fs.length+' archivos…':'Subiendo…'); await subirComprobantes(fs,{turno:id}); vistaRetro(id); };
+  conectarDocs(app, () => vistaRetro(id));
+  $('#rborrar').onclick = () => { if(!confirm('¿Borrar este borrador y sus comprobantes?')) return;
+    ocupado($('#rborrar'), async () => { await rpc('con_retro_borrar', {p_turno:id}); toast('Borrador eliminado.'); vistaPanel('retro'); }); };
+  $('#rcerrar').onclick = () => ocupado($('#rcerrar'), async () => {
+    const j = $('#rjust') ? $('#rjust').value.trim() : null;
+    if(estado!=='cuadrado' && !j) throw new Error('Escribe la explicación de la diferencia.');
+    await guardar();
+    const pin = await pedirPin('Cerrar corte retroactivo', `${esc(t.caja)} · ${NOMBRE_TURNO[t.turno]} ${fechaCorta(t.fecha)}. Quedará marcado como retroactivo.`); if(!pin) return;
+    const r = await rpc('con_retro_cerrar', {p_turno:id, p_justificacion:j, p_pin:pin});
+    if(r.code==='JUSTIFICAR') throw new Error('El sistema detectó una diferencia. Escribe la explicación y vuelve a cerrar.');
+    if(!r.ok) throw new Error(r.error || 'No se pudo cerrar.');
+    toast('Corte retroactivo cerrado.'); vistaPanel('retro'); detalleTurno(id);
+  });
+  if(s.pendientes) sondeo = setTimeout(() => { if($('#subR') && document.body.contains($('#subR'))) vistaRetro(id); }, 3000);
+}
+
 // ===================== Resultado y reporte =====================
 function vistaResultado(r, t, just){
   const txt = {cuadrado:'La caja cuadró', faltante:`Faltante de ${money(Math.abs(r.dif_total))}`, sobrante:`Sobrante de ${money(r.dif_total)}`, revisar:'Cerrado con diferencias'}[r.estado];
@@ -1301,15 +1407,17 @@ async function generarReporte(id){
   x.fillStyle='#1D4F66'; x.fillRect(0,0,W,150);
   if(logo) x.drawImage(logo, 56, 43, 64, 64);
   const pagosR = t.modo==='pagos';
-  x.fillStyle='#fff'; x.font=F(700,40); x.fillText(pagosR ? 'Cierre de caja de pagos' : 'Cierre de caja', 140, 72);
+  x.fillStyle='#fff'; x.font=F(700,40); x.fillText(pagosR ? 'Cierre de caja de pagos' : t.retroactivo ? 'Cierre de caja · RETROACTIVO' : 'Cierre de caja', 140, 72);
   x.font=F(400,26); x.globalAlpha=.88; x.fillText(`Centro Ocular Especializado · ${t.caja}`, 140, 110); x.globalAlpha=1;
   x.textAlign='right'; x.font=F(700,28); x.fillText(pagosR ? 'Contabilidad' : (NOMBRE_TURNO[t.turno]||t.turno), W-56, 70);
-  x.font=F(400,26); x.fillText(`${fechaCorta(t.fecha)} · ${hora(t.cerrado_en)}`, W-56, 108); x.textAlign='left';
+  x.font=F(400,26); x.fillText(t.retroactivo ? `Corte del ${fechaCorta(t.fecha)}` : `${fechaCorta(t.fecha)} · ${hora(t.cerrado_en)}`, W-56, 108); x.textAlign='left';
   // Resultado
   let y = 180; rr(56,y,W-112,140,20,col[0]);
   const tit = {cuadrado:'CUADRÓ', faltante:'NO CUADRÓ · FALTANTE', sobrante:'NO CUADRÓ · SOBRANTE', revisar:'NO CUADRÓ · REVISAR', sin_cierre:'SIN CIERRE'}[t.estado] || t.estado;
   x.fillStyle=col[1]; x.font=F(700,28); x.fillText(tit, 92, y+58);
-  x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(`${t.estado==='sin_cierre'?'Responsable':'Cerró'}: ${String((t.estado==='sin_cierre'?t.responsable:t.usuario)||'').split(' ').map(cap).join(' ')}${t.estado==='sin_cierre'?'':' · firmado con PIN'}`, 92, y+98);
+  x.fillStyle='#5B6873'; x.font=F(400,24);
+  if(t.retroactivo) x.fillText(`${String(t.usuario||'').split(' ').slice(0,2).map(cap).join(' ')} · subido el ${fechaCorta(t.retro_en)}`, 92, y+98);
+  else x.fillText(`${t.estado==='sin_cierre'?'Responsable':'Cerró'}: ${String((t.estado==='sin_cierre'?t.responsable:t.usuario)||'').split(' ').map(cap).join(' ')}${t.estado==='sin_cierre'?'':' · firmado con PIN'}`, 92, y+98);
   x.fillStyle=col[1]; x.font=F(700,64); x.textAlign='right'; x.fillText(t.estado==='sin_cierre'?'—':sg(t.dif_total), W-92, y+92); x.textAlign='left';
   // Efectivo
   y += 166; const directo = t.modo==='deposito_directo';
@@ -1424,12 +1532,13 @@ function vistaPanel(tab){
   const rolP = S.estado.usuario.rol, esAdmin = rolP==='admin';
   const tabs = [['hoy','Hoy'],['historial','Historial'],['alertas','Alertas']];
   if(rolP!=='contabilidad') tabs.push(['coberturas','Coberturas']);
+  if(['admin','contabilidad'].includes(rolP)) tabs.push(['retro','Retroactivos']);
   if(esAdmin) tabs.push(['usuarios','Usuarios'],['ajustes','Ajustes']);
   app.innerHTML = `<h1>${rolP==='contabilidad'?'Contabilidad':'Panel de control'}</h1>
     <nav class="tabs">${tabs.map(([k,n])=>`<button data-tab="${k}" aria-current="${k===tabPanel}">${n}</button>`).join('')}</nav>
     <div id="pc"><p class="sub">Cargando…</p></div>`;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => vistaPanel(b.dataset.tab));
-  ({hoy:panelHoy, historial:panelHistorial, alertas:panelAlertas, coberturas:panelCoberturas, usuarios:panelUsuarios, ajustes:panelAjustes})[tabPanel]()
+  ({hoy:panelHoy, historial:panelHistorial, alertas:panelAlertas, coberturas:panelCoberturas, retro:panelRetro, usuarios:panelUsuarios, ajustes:panelAjustes})[tabPanel]()
     .catch(e => { $('#pc').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`; });
 }
 
@@ -1530,9 +1639,9 @@ async function panelHistorial(){
     const falt = ts.filter(x=>x.estado==='faltante').reduce((s,x)=>s+Math.abs(Number(x.dif_total)),0);
     $('#hl').innerHTML = (falt ? `<div class="aviso mal" style="margin-top:0">Faltantes en el periodo: <b>${money(falt)}</b></div>` : '') +
       (ts.map(x => `<div class="item" data-det="${x.id}"><div class="t"><b>${fechaCorta(x.fecha)} · ${esc(x.caja)} · ${ABREV_TURNO[x.turno]||x.turno}</b>
-        <span>${esc(x.usuario)}${x.es_cobertura?' (cobertura)':''}, ${esc(x.sucursal)}</span></div>
-        <div class="v ${x.estado}">${x.estado==='cuadrado'?'Cuadró':x.estado==='abierto'?'Abierto':money(x.dif_total)}</div></div>`).join('') || '<div class="vacio-msg">No hay turnos en esas fechas.</div>');
-    $('#hl').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+        <span>${esc(x.usuario)}${x.es_cobertura?' (cobertura)':''}, ${esc(x.sucursal)}${x.retroactivo?' · <b style="color:var(--warn)">Retroactivo</b>':''}</span></div>
+        <div class="v ${x.estado}">${x.estado==='cuadrado'?'Cuadró':x.estado==='abierto'?'Abierto':x.estado==='retro'?'Borrador':money(x.dif_total)}</div></div>`).join('') || '<div class="vacio-msg">No hay turnos en esas fechas.</div>');
+    $('#hl').querySelectorAll('[data-det]').forEach(b => b.onclick = () => { const x = d.turnos.find(y => y.id===b.dataset.det); x?.estado==='retro' ? vistaRetro(x.id) : detalleTurno(b.dataset.det); });
   };
   ['hd','hh','he'].forEach(i => $('#'+i).onchange = () => cargarH().catch(e=>toast(e.message,true)));
   await cargarH();
@@ -1544,11 +1653,12 @@ async function detalleTurno(id){
   const m = modal(`
     <h3>${esc(t.caja)}, ${esc(t.turno)} ${fechaCorta(t.fecha)}</h3>
     <p class="sub">${esc(t.usuario)}${t.es_cobertura?' (cobertura)':''}. Abrió ${hora(t.abierto_en)}${t.cerrado_en?', cerró '+hora(t.cerrado_en):''}.</p>
-    ${t.estado!=='abierto' ? `<div class="resultado ${t.estado}" style="padding:14px"><div class="grande" style="font-size:30px">${ESTADOS[t.estado]} ${t.estado==='cuadrado'?'':money(Math.abs(t.dif_total))}</div></div>` : '<div class="aviso">Turno abierto.</div>'}
+    ${t.retroactivo ? `<div class="aviso ojo"><b>Corte retroactivo.</b> Subido por ${esc(t.retro_por_nombre||'')} el ${fechaCorta(t.retro_en)} ${hora(t.retro_en)}${t.cerrado_por_nombre&&t.estado!=='retro'?'; cerrado por '+esc(t.cerrado_por_nombre):''}.</div>` : ''}
+    ${t.estado==='retro' ? '<div class="aviso">Borrador en captura.</div>' : t.estado!=='abierto' ? `<div class="resultado ${t.estado}" style="padding:14px"><div class="grande" style="font-size:30px">${ESTADOS[t.estado]} ${t.estado==='cuadrado'?'':money(Math.abs(t.dif_total))}</div></div>` : '<div class="aviso">Turno abierto.</div>'}
     ${t.justificacion ? `<div class="aviso ojo"><b>Explicación:</b> ${esc(t.justificacion)}</div>` : ''}
     ${['faltante','sobrante','revisar'].includes(t.estado) ? `<div class="aviso ${t.aviso_manual_en?'':'mal'}">${t.aviso_manual_en ? 'Avisó por WhatsApp a las '+hora(t.aviso_manual_en)+'.' : '<b>No tocó el botón de aviso por WhatsApp.</b>'}</div>` : ''}
     ${t.aclaracion ? `<div class="aviso"><b>Aclaración de la cajera:</b> ${esc(t.aclaracion)}</div>` : ''}
-    ${t.responsable && t.responsable!==t.usuario ? `<div class="aviso mal"><b>Responsable del dinero:</b> ${esc(t.responsable)} (cerró el turno en lugar de la cajera)</div>` : ''}
+    ${t.responsable && t.responsable!==t.usuario && !t.retroactivo ? `<div class="aviso mal"><b>Responsable del dinero:</b> ${esc(t.responsable)} (cerró el turno en lugar de la cajera)</div>` : ''}
     ${t.entregado_a ? `<div class="aviso">Entregó la caja a <b>${esc(t.entregado_a)}</b> con ${money(t.fondo_final_total)}, firmado por ambas.</div>` : ''}
     ${t.revisado_por_nombre ? `<div class="aviso" style="border-color:var(--ok);background:var(--ok-soft)"><b>Revisado por</b> ${esc(t.revisado_por_nombre)} · ${fechaCorta(t.revisado_en)} ${hora(t.revisado_en)}</div>` : ''}
     ${(t.observaciones||[]).length ? `<div class="card"><b class="mini">OBSERVACIONES</b>${t.observaciones.map(o=>`<div class="row" style="display:block"><b>${esc(o.usuario)}</b> <span class="sub">${fechaCorta(o.creado)} ${hora(o.creado)}</span><br>${esc(o.texto)}</div>`).join('')}</div>` : ''}
@@ -1573,12 +1683,16 @@ async function detalleTurno(id){
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
-  if(t.estado!=='abierto'){
+  if(t.estado==='retro'){
+    const r = document.createElement('button'); r.className='btn full'; r.style.marginTop='10px'; r.textContent='Continuar captura';
+    m.querySelector('#dc').before(r); r.onclick = () => { m.remove(); vistaRetro(t.id); };
+  }
+  if(!['abierto','retro'].includes(t.estado)){
     const r = document.createElement('button'); r.className='btn full'; r.style.cssText='margin-top:10px;background:#1F8F4E'; r.innerHTML=ICO.wa+' Compartir reporte';
     m.querySelector('#dc').before(r); r.onclick = () => ocupado(r, () => compartirReporte(t.id));
   }
   const rolD = S.estado.usuario.rol;
-  if(t.estado!=='abierto' && !t.revisado_por_nombre && ['admin','contabilidad'].includes(rolD)){
+  if(!['abierto','retro'].includes(t.estado) && !t.revisado_por_nombre && ['admin','contabilidad'].includes(rolD)){
     const r = document.createElement('button'); r.className='btn sec full'; r.style.marginTop='10px'; r.textContent='Marcar como revisado';
     m.querySelector('#dc').before(r); r.onclick = () => ocupado(r, async () => { await rpc('con_revisar_turno', {p_turno:t.id}); toast('Marcado como revisado.'); m.remove(); detalleTurno(t.id); });
   }
