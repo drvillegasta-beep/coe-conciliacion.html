@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.3 · 2 oct 2026 · Clínica con depósito directo; duplicados de eOptics por número de corte -->
+<!-- COE Conciliación · v3.4 · 11 oct 2026 · Caja de pagos de Contabilidad vinculada a COE Finanzas -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -214,7 +214,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.3 · 2 oct 2026';
+const VERSION = 'v3.4 · 11 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -488,15 +488,15 @@ async function cargar(){
   $('#cab').hidden = false;
   const rol = S.estado.usuario.rol;
   const sup = ['admin','supervisor','contabilidad'].includes(rol);
-  $('#btnPanel').hidden = !['admin','supervisor'].includes(rol);
+  $('#btnPanel').hidden = !['admin','supervisor','contabilidad'].includes(rol);
   if(S.irTurno){
     const id = S.irTurno; S.irTurno = null; history.replaceState(null, '', location.pathname);
     if(sup){ vistaPanel('hoy'); return detalleTurno(id); }
     toast('Ese enlace es para supervisión.', true);
   }
-  if(rol==='contabilidad'){ vistaPanel('hoy'); revisarPendientes(false); return; }
   vistaInicio();
   revisarPendientes(false);
+  if(S.irPago){ const id = S.irPago; S.irPago = null; history.replaceState(null, '', location.pathname); verPago(id); }
 }
 
 // ===================== Íconos =====================
@@ -623,8 +623,9 @@ function vistaInicio(){
     <div id="pendBanner"></div>
     ${cajas.length ? cajas.map(c => {
       const a = c.abierto;
-      const est = a ? `Turno ${turnoTxt(a.turno)} · ${esc(a.usuario.split(' ')[0])} · desde ${hora(a.abierto_en)}` : 'Sin turno abierto';
-      const boton = !a ? `<button class="btn chico" data-abrir="${c.id}">Abrir turno</button>`
+      const pg = c.modo==='pagos';
+      const est = a ? (pg ? `Caja de pagos · ${esc(a.usuario.split(' ')[0])} · desde ${hora(a.abierto_en)}` : `Turno ${turnoTxt(a.turno)} · ${esc(a.usuario.split(' ')[0])} · desde ${hora(a.abierto_en)}`) : (pg ? 'Caja de pagos · sin abrir' : 'Sin turno abierto');
+      const boton = !a ? `<button class="btn chico" data-abrir="${c.id}">${pg?'Abrir caja':'Abrir turno'}</button>`
                   : a.mio ? `<button class="btn chico" data-seguir="${a.id}">Continuar</button>` : `<span class="chip abierto">Ocupada</span>`;
       return `<div class="caja">
         <div class="ic ${a?'activo':''}">${ICO.doc}</div>
@@ -706,19 +707,20 @@ async function vistaAclarar(id){
 
 // ===================== Abrir turno =====================
 function vistaAbrir(caja){
-  const st = { turno: turnoSugerido(caja), conteo:{}, nota:null };
+  const pg = caja.modo==='pagos';
+  const st = { turno: pg ? 'matutino' : turnoSugerido(caja), conteo:{}, nota:null };
   const pintar = () => {
     app.innerHTML = `
       <button class="btn sec chico" id="volver">Volver</button>
-      <h1 style="margin-top:14px">Abrir turno</h1>
+      <h1 style="margin-top:14px">${pg?'Abrir caja de pagos':'Abrir turno'}</h1>
       <p class="sub">${esc(caja.nombre)} · ${esc(caja.sucursal)}</p>
-      <div class="seg" role="group" aria-label="Turno" style="margin-top:12px">
+      <div class="seg" role="group" aria-label="Turno" style="margin-top:12px" ${pg?'hidden':''}>
         <button aria-pressed="${st.turno==='matutino'}" data-t="matutino">Matutino</button>
         <button aria-pressed="${st.turno==='comida'}" data-t="comida">Comida</button>
         <button aria-pressed="${st.turno==='vespertino'}" data-t="vespertino">Vespertino</button>
       </div>
       ${caja.modo==='deposito_directo' ? `<div class="aviso" style="margin-top:16px">Esta caja no maneja fondo: el efectivo se deposita directo en el depositador durante el día. Solo elige tu turno y firma.</div>`
-        : `<h2>Cuenta el fondo con el que abres</h2>${contadorHTML('cnt','Fondo inicial')}`}
+        : `<h2>Cuenta el ${pg?'efectivo':'fondo'} con el que abres</h2>${contadorHTML('cnt','Fondo inicial')}`}
       <div id="notaBox"></div>
       ${acciones('<button class="btn" id="firmar">Firmar apertura</button>')}`;
     if(caja.modo!=='deposito_directo') montarContador('cnt', st.conteo);
@@ -730,10 +732,10 @@ function vistaAbrir(caja){
     const nota = $('#nota')?.value ?? null;
     if(st.nota !== null && !nota.trim()) throw new Error('Explica la diferencia del fondo para continuar.');
     const total = totalConteo(st.conteo);
-    const pin = await pedirPin('Firmar apertura', caja.modo==='deposito_directo' ? `Turno ${turnoTxt(st.turno)}.` : `Fondo inicial de <b>${money(total)}</b>, turno ${turnoTxt(st.turno)}.`);
+    const pin = await pedirPin('Firmar apertura', caja.modo==='deposito_directo' ? `Turno ${turnoTxt(st.turno)}.` : (pg ? `Fondo inicial de <b>${money(total)}</b>.` : `Fondo inicial de <b>${money(total)}</b>, turno ${turnoTxt(st.turno)}.`));
     if(!pin) return;
     const r = await rpc('con_abrir_turno', {p_caja:caja.id, p_turno:st.turno, p_fondo:conteoJSON(st.conteo), p_nota:nota, p_pin:pin});
-    if(r.ok){ toast('Turno abierto.'); await cargar(); return vistaTurno(r.turno_id); }
+    if(r.ok){ toast(pg?'Caja abierta.':'Turno abierto.'); await cargar(); return vistaTurno(r.turno_id); }
     if(r.code==='FONDO'){
       st.nota = '';
       $('#notaBox').innerHTML = `<div class="aviso mal"><b>El fondo no coincide con el último cierre.</b><br>
@@ -754,6 +756,7 @@ async function vistaTurno(id){
   let t;
   try{ t = await rpc('con_turno', {p_turno:id}); } catch(e){ return toast(e.message,true); }
   if(t.estado !== 'abierto') return cargar();
+  if(t.modo==='pagos') return vistaPagos(t);
   try{ t.evidencias = await rpc('con_lectura', {p_turno:id}); }catch{}
   const evs = t.evidencias.filter(e => !['gasto','otro'].includes(e.tipo) && !['descartado'].includes(e.estado));
   // Comprobantes viejos que nunca se mandaron a leer
@@ -805,9 +808,9 @@ function modalGasto(turnoId){
 }
 
 // ===================== Cierre guiado =====================
-function pasos(n, directo){
-  const nom = directo ? ['Comprobantes','Firmar'] : ['Fondo','Comprobantes','Firmar'];
-  if(directo) n = n - 1;
+function pasos(n, directo, nomP){
+  const nom = nomP || (directo ? ['Comprobantes','Firmar'] : ['Fondo','Comprobantes','Firmar']);
+  if(directo && !nomP) n = n - 1;
   return `<div class="steps">${nom.map((_,i)=>`<div class="${i<n-1?'done':i===n-1?'on':''}"></div>`).join('')}</div>
     <div class="stl">${nom.map((x,i)=> i<n-1 ? `<span>✓ ${x}</span>` : i===n-1 ? `<b style="color:var(--iris)">${x}</b>` : `<span>${x}</span>`).join('')}</div>`;
 }
@@ -898,21 +901,352 @@ function vistaCerrar(id){
   pintar();
 }
 
+// ===================== Caja de pagos (Contabilidad) =====================
+// Los pagos se registran también en COE Finanzas; la foto va al almacén de Finanzas.
+const FIN_BUCKET = 'comprobantes';
+const enlacePago = id => location.origin + location.pathname + '?pago=' + id;
+const ESTADO_MOV = {por_confirmar:'Por confirmar', rechazado:'No reconocido', anulado:'Anulado'};
+const esPdf = u => /\.pdf(\?|$)/i.test(u||'');
+async function subirNotaPago(file){
+  const f = await comprimir(file);
+  const d = new Date(), ym = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  const ext = ((f.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')) || 'jpg';
+  const path = `fin/pagos/${ym}/caja_${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const {error} = await sb.storage.from(FIN_BUCKET).upload(path, f, {contentType:f.type||'application/octet-stream'});
+  if(error) throw new Error('No se pudo subir la foto: ' + error.message);
+  return sb.storage.from(FIN_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+let catPagos = null;
+async function catalogoPagos(forzar){ if(!catPagos || forzar) catPagos = await rpc('con_pagos_catalogo'); return catPagos; }
+const sumaMov = (movs, tipo) => (movs||[]).filter(m => m.tipo===tipo && (tipo==='ingreso' ? ['confirmado','por_confirmar'].includes(m.estado) : m.estado==='confirmado'))
+                                     .reduce((s,m) => s + Number(m.monto||0), 0);
+function filaMov(m){
+  const ing = m.tipo==='ingreso';
+  const tit = ing ? 'Recibido' + (m.entrega ? ' de ' + esc(m.entrega.split(' ').slice(0,3).join(' ')) : '') : esc(m.proveedor || 'Pago');
+  const sub = `${hora(m.creado)} · ${ing ? esc(m.concepto || 'Efectivo para pagos') : esc(m.concepto || '')}`;
+  const est = ESTADO_MOV[m.estado] ? ` <span class="chip ${m.estado==='por_confirmar'?'revisar':'faltante'}">${ESTADO_MOV[m.estado]}</span>` : '';
+  const fuera = ['rechazado','anulado'].includes(m.estado);
+  return `<button class="row fila-btn" data-mov="${m.id}"><span><b>${tit}</b>${est}<br><span class="sub">${sub}</span></span>
+    <b style="white-space:nowrap;color:${fuera?'var(--idle)':ing?'var(--ok)':'var(--ink)'};${fuera?'text-decoration:line-through':''}">${ing?'+':'−'}${money(m.monto)}</b></button>`;
+}
+
+function vistaPagos(t){
+  clearTimeout(sondeo);
+  const movs = t.movimientos || [];
+  const porConf = movs.filter(m => m.estado==='por_confirmar').length;
+  app.innerHTML = `
+    <div class="cabturno"><div><h1>${esc(t.caja)}</h1><p class="sub">Caja de pagos · abierta ${t.fecha!==hoyISO()?'el '+fechaCorta(t.fecha)+' ':''}desde ${hora(t.abierto_en)}</p></div><button class="btn sec chico" id="volver">Inicio</button></div>
+    <div class="resultado cuadrado" style="padding:18px"><div style="font-size:15px">Efectivo disponible</div><div class="grande">${money(t.disponible)}</div></div>
+    <div class="card"><div class="sumrow"><span>Fondo inicial</span><b>${money(t.fondo_inicial_total)}</b></div>
+      <div class="sumrow"><span>Recibido</span><b>+${money(sumaMov(movs,'ingreso'))}</b></div>
+      <div class="sumrow"><span>Pagado</span><b>−${money(sumaMov(movs,'pago'))}</b></div></div>
+    ${porConf ? `<div class="aviso ojo">${porConf===1?'Un ingreso está':porConf+' ingresos están'} por confirmar por la Dirección.</div>` : ''}
+    <div class="fila" style="margin-top:14px;align-items:stretch"><button class="btn sec" id="recibir" style="flex:1">Recibir efectivo</button><button class="btn" id="pagar" style="flex:1">Registrar pago</button></div>
+    <h2>Movimientos</h2>
+    <div class="card">${movs.length ? movs.slice().reverse().map(filaMov).join('') : '<p class="sub" style="margin:0;text-align:center">Aún no hay movimientos. Cada pago a proveedor se registra con la foto de la nota.</p>'}</div>
+    ${acciones('<button class="btn sec" id="cerrar">Cerrar caja</button>')}`;
+  $('#volver').onclick = () => cargar();
+  $('#recibir').onclick = () => modalRecibir(t);
+  $('#pagar').onclick = () => vistaRegistrarPago(t);
+  $('#cerrar').onclick = () => vistaCerrarPagos(t.id);
+  app.querySelectorAll('[data-mov]').forEach(b => b.onclick = () => verPago(b.dataset.mov, false, () => vistaTurno(t.id)));
+}
+
+async function modalRecibir(t){
+  let cat; try{ cat = await catalogoPagos(); }catch(e){ return toast(e.message,true); }
+  const m = modal(`<h3>Recibir efectivo</h3>
+    <p class="sub">Registra el dinero que te entregan para pagar proveedores.</p>
+    <label for="rm">Monto recibido</label><input id="rm" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+    <label for="rd">¿Quién lo entrega?</label><select id="rd"><option value="">Elige…</option>${(cat.directores||[]).map(d=>`<option value="${d.id}">${esc(d.nombre)}</option>`).join('')}</select>
+    <label for="rn">Nota (opcional)</label><input id="rn" type="text" placeholder="Ej. Para pagar al laboratorio">
+    <label for="rp">PIN de quien entrega</label><input id="rp" class="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <p class="sub" style="margin-top:6px">Si no está presente, déjalo vacío: queda <b>por confirmar</b> y lo confirma después desde su panel.</p>
+    <div class="fila" style="margin-top:16px"><button class="btn sec" id="rno">Cancelar</button><button class="btn" id="rsi">Firmar recibido</button></div>`);
+  m.querySelector('#rno').onclick = () => m.remove();
+  m.querySelector('#rsi').onclick = () => ocupado(m.querySelector('#rsi'), async () => {
+    const monto = Number(m.querySelector('#rm').value), de = m.querySelector('#rd'), pe = m.querySelector('#rp').value;
+    if(!(monto>0)) throw new Error('Escribe el monto recibido.');
+    if(!de.value) throw new Error('Elige quién entrega el dinero.');
+    if(pe && pe.length<4) throw new Error('El PIN tiene de 4 a 6 números.');
+    const pin = await pedirPin('Firmar recibido', `Recibes <b>${money(monto)}</b> de ${esc(de.options[de.selectedIndex].text)}.`); if(!pin) return;
+    const r = await rpc('con_recibir_efectivo', {p_turno:t.id, p_monto:monto, p_nota:m.querySelector('#rn').value.trim()||null,
+                                                 p_entrega:de.value, p_pin_entrega:pe||null, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    m.remove();
+    toast(r.estado==='confirmado' ? `Recibido ${money(monto)}. Disponible: ${money(r.disponible)}.` : 'Registrado. Queda por confirmar por la Dirección.');
+    vistaTurno(t.id);
+  });
+}
+
+async function vistaRegistrarPago(t){
+  let cat; try{ cat = await catalogoPagos(true); }catch(e){ return toast(e.message,true); }
+  const st = { modo:'nuevo', factura:'si', foto:null, url:null };
+  app.innerHTML = `
+    <div class="cabturno"><div><h1>Registrar pago</h1><p class="sub">Disponible en caja: <b>${money(t.disponible)}</b></p></div><button class="btn sec chico" id="volver">Volver</button></div>
+    <div class="seg" role="group" aria-label="Tipo de pago" style="margin-top:12px">
+      <button aria-pressed="true" data-m="nuevo">Pago nuevo</button>
+      <button aria-pressed="false" data-m="pendiente">Factura pendiente (${cat.pendientes.length})</button></div>
+    <div id="campos"></div>
+    <label class="btn sec full" for="ff" style="margin-top:18px">${ICO.camara}<span id="fl">Foto de la nota o factura</span></label>
+    <input id="ff" type="file" accept="image/*,application/pdf">
+    <div id="prev"></div>
+    <p class="sub" style="margin-top:8px">Se registra en COE Finanzas como egreso pagado en efectivo, con esta foto.</p>
+    ${acciones('<button class="btn" id="firmar">Firmar pago</button>')}`;
+  const campos = () => {
+    $('#campos').innerHTML = st.modo==='nuevo' ? `
+      <label for="pv">Proveedor</label><input id="pv" type="text" list="pvl" autocomplete="off" placeholder="Escribe o elige">
+      <datalist id="pvl">${cat.proveedores.map(p=>`<option value="${esc(p.nombre)}"></option>`).join('')}</datalist>
+      <label for="pc">Concepto</label><input id="pc" type="text" placeholder="Qué se pagó">
+      <label for="pg">Categoría</label><input id="pg" type="text" list="pgl" autocomplete="off" placeholder="Opcional">
+      <datalist id="pgl">${cat.categorias.map(c=>`<option value="${esc(c)}"></option>`).join('')}</datalist>
+      <label for="pm">Monto pagado</label><input id="pm" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+      <label>¿Trae factura?</label>
+      <div class="seg" role="group" aria-label="Factura">${[['si','Sí'],['despues','Llega después'],['no','Sin factura']].map(([k,n])=>`<button aria-pressed="${st.factura===k}" data-fac="${k}">${n}</button>`).join('')}</div>`
+    : cat.pendientes.length ? `
+      <label for="pf">Factura pendiente en Finanzas</label>
+      <select id="pf"><option value="">Elige…</option>${cat.pendientes.map(f=>`<option value="${f.id}">${esc(f.proveedor||'Sin proveedor')} · ${esc(f.numero?'Fact. '+f.numero:(f.descripcion||''))} · saldo ${money(f.saldo)}</option>`).join('')}</select>
+      <div id="pfd"></div>
+      <label for="pm">Monto pagado</label><input id="pm" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">`
+    : '<div class="vacio-msg">No hay facturas pendientes en Finanzas.</div>';
+    app.querySelectorAll('[data-fac]').forEach(b => b.onclick = () => { st.factura = b.dataset.fac; app.querySelectorAll('[data-fac]').forEach(x => x.setAttribute('aria-pressed', x===b)); });
+    if($('#pv')) $('#pv').onchange = () => { const p = cat.proveedores.find(x => x.nombre.toLowerCase()===$('#pv').value.trim().toLowerCase());
+      if(p?.categoria && !$('#pg').value) $('#pg').value = p.categoria; };
+    if($('#pf')) $('#pf').onchange = () => { const f = cat.pendientes.find(x => x.id===$('#pf').value);
+      $('#pfd').innerHTML = f ? `<div class="card"><div class="sumrow"><span>Concepto</span><b>${esc(f.descripcion||'—')}</b></div>
+        <div class="sumrow"><span>Total / saldo</span><b>${money(f.total)} / ${money(f.saldo)}</b></div>${f.vence?`<div class="sumrow"><span>Vence</span><b>${fechaCorta(f.vence)}</b></div>`:''}</div>` : '';
+      if(f) $('#pm').value = Math.min(Number(f.saldo), Number(t.disponible)).toFixed(2); };
+  };
+  campos();
+  app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { st.modo = b.dataset.m; app.querySelectorAll('[data-m]').forEach(x => x.setAttribute('aria-pressed', x===b)); campos(); });
+  $('#volver').onclick = () => vistaTurno(t.id);
+  $('#ff').onchange = e => { const f = e.target.files[0]; if(!f) return; st.foto = f; st.url = null;
+    $('#fl').textContent = 'Foto lista · tocar para cambiar';
+    $('#prev').innerHTML = f.type.startsWith('image/') ? `<img src="${URL.createObjectURL(f)}" alt="Nota" style="width:100%;max-height:260px;object-fit:contain;margin-top:10px;border-radius:8px;border:1px solid var(--line);background:#fff">` : `<p class="sub" style="margin-top:8px">${esc(f.name)}</p>`; };
+  $('#firmar').onclick = () => ocupado($('#firmar'), async () => {
+    const monto = Number($('#pm')?.value), d = {monto};
+    let prov;
+    if(st.modo==='nuevo'){
+      prov = $('#pv').value.trim(); const conc = $('#pc').value.trim();
+      if(!prov) throw new Error('Escribe o elige el proveedor.');
+      if(!conc) throw new Error('Escribe el concepto del pago.');
+      const p = cat.proveedores.find(x => x.nombre.toLowerCase()===prov.toLowerCase());
+      if(p) d.entidad_id = p.id; else d.entidad_nombre = prov;
+      Object.assign(d, {concepto:conc, categoria:$('#pg').value.trim()||null, factura:st.factura});
+      if(!(monto>0)) throw new Error('Escribe el monto pagado.');
+      if(!p && !confirm(`“${prov}” no está en Finanzas. ¿Darlo de alta como proveedor nuevo?`)) return;
+    } else {
+      const f = cat.pendientes.find(x => x.id===$('#pf')?.value);
+      if(!f) throw new Error('Elige la factura que vas a pagar.');
+      if(!(monto>0)) throw new Error('Escribe el monto pagado.');
+      if(monto > Number(f.saldo)+0.009) throw new Error(`El saldo de esa factura es ${money(f.saldo)}.`);
+      d.factura_id = f.id; prov = f.proveedor || 'proveedor';
+    }
+    if(monto > Number(t.disponible)+0.009) throw new Error(`No alcanza el efectivo: hay ${money(t.disponible)} en caja.`);
+    if(!st.foto) throw new Error('Toma la foto de la nota o factura.');
+    const pin = await pedirPin('Firmar pago', `Pagas <b>${money(monto)}</b> a ${esc(prov)}.`); if(!pin) return;
+    if(!st.url){ toast('Subiendo foto…'); st.url = await subirNotaPago(st.foto); }
+    d.archivo_url = st.url;
+    const r = await rpc('con_registrar_pago', {p_turno:t.id, p_d:d, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    catPagos = null;
+    await vistaTurno(t.id);
+    verPago(r.id, true, () => vistaTurno(t.id));
+  });
+}
+
+async function verPago(id, recien, alCambiar){
+  let p; try{ p = await rpc('con_pago', {p_mov:id}); }catch(e){ return toast(e.message,true); }
+  const ing = p.tipo==='ingreso', fila = (n,v) => `<tr><td>${n}</td><td>${v}</td></tr>`;
+  const fac = p.factura_id ? `Abono a factura${p.factura_numero?' '+esc(p.factura_numero):''} · saldo ${money(p.factura_saldo)}`
+            : p.con_factura ? 'Sí' : (p.estado==='anulado' ? '—' : esc(p.nota || 'Sin factura'));
+  const m = modal(`<h3>${recien ? 'Pago registrado' : ing ? 'Ingreso de efectivo' : 'Comprobante de pago'}</h3>
+    <p class="sub">Folio <b>${esc(p.folio)}</b> · ${fechaCorta(p.creado)} ${hora(p.creado)}</p>
+    ${recien ? '<div class="aviso" style="border-color:var(--ok);background:var(--ok-soft)">Quedó registrado en COE Finanzas como egreso.</div>' : ''}
+    ${ESTADO_MOV[p.estado] ? `<div class="aviso ${p.estado==='por_confirmar'?'ojo':'mal'}"><b>${ESTADO_MOV[p.estado]}</b>${p.estado==='anulado'&&p.nota?': '+esc(p.nota):''}${p.confirmado_por_nombre&&p.estado!=='por_confirmar'?' · '+esc(p.confirmado_por_nombre):''}</div>` : ''}
+    <div class="resultado ${ing?'cuadrado':'abierto'}" style="padding:14px;${ing?'':'background:var(--iris-soft);color:var(--iris)'}"><div class="grande" style="font-size:34px">${money(p.monto)}</div></div>
+    <table class="desglose">
+      ${ing ? fila('Entregó', esc(p.entrega||'—')) + fila('Recibió', esc(p.usuario)) + (p.concepto?fila('Nota', esc(p.concepto)):'')
+              + fila('Confirmación', p.estado==='confirmado' ? 'Confirmado por '+esc(p.confirmado_por_nombre||'') : esc(ESTADO_MOV[p.estado]||p.estado))
+            : fila('Proveedor', esc(p.entidad_nombre||'—')) + fila('Concepto', esc(p.concepto||'—')) + (p.categoria?fila('Categoría', esc(p.categoria)):'')
+              + fila('Factura', fac) + fila('Pagó', esc(p.usuario)) + fila('Caja', esc(p.caja))}
+    </table>
+    ${p.archivo_url ? (esPdf(p.archivo_url) ? `<a class="btn sec full" href="${esc(p.archivo_url)}" target="_blank" rel="noopener" style="margin-top:12px">Ver nota (PDF)</a>`
+       : `<a href="${esc(p.archivo_url)}" target="_blank" rel="noopener"><img src="${esc(p.archivo_url)}" alt="Nota" style="width:100%;max-height:300px;object-fit:contain;margin-top:12px;border-radius:8px;border:1px solid var(--line);background:#fff"></a>`) : ''}
+    <div id="pacc"></div>
+    <button class="btn sec full" id="pcerrar" style="margin-top:10px">Cerrar</button>`);
+  const acc = m.querySelector('#pacc');
+  m.querySelector('#pcerrar').onclick = () => m.remove();
+  if(!ing && p.estado==='confirmado'){
+    acc.insertAdjacentHTML('beforeend', `<button class="btn full" id="pshare" style="margin-top:14px;background:#1F8F4E">${ICO.wa} Compartir comprobante</button>`);
+    m.querySelector('#pshare').onclick = () => ocupado(m.querySelector('#pshare'), () => compartirPago(p));
+  }
+  if(!ing && p.estado==='confirmado' && S.estado.usuario.rol==='admin'){
+    acc.insertAdjacentHTML('beforeend', `<button class="btn sec full" id="panular" style="margin-top:10px;color:var(--bad)">Anular este pago</button>`);
+    m.querySelector('#panular').onclick = () => {
+      const v = modal(`<h3>Anular pago</h3><p class="sub">Se regresa el dinero al disponible de la caja y se cancela en Finanzas. Solo con la caja abierta.</p>
+        <label for="am">Motivo</label><textarea id="am" placeholder="Ej. Se registró dos veces"></textarea>
+        <div class="fila" style="margin-top:14px"><button class="btn sec" id="ano">Cancelar</button><button class="btn peligro" id="asi">Anular</button></div>`);
+      v.querySelector('#ano').onclick = () => v.remove();
+      v.querySelector('#asi').onclick = () => ocupado(v.querySelector('#asi'), async () => {
+        const mot = v.querySelector('#am').value.trim(); if(!mot) throw new Error('Escribe el motivo.');
+        const pin = await pedirPin('Anular pago', `${money(p.monto)} a ${esc(p.entidad_nombre||'')}.`); if(!pin) return;
+        const r = await rpc('con_anular_pago', {p_mov:p.id, p_motivo:mot, p_pin:pin}); if(!r.ok) throw new Error(r.error);
+        v.remove(); m.remove(); toast('Pago anulado.'); if(alCambiar) alCambiar();
+      });
+    };
+  }
+}
+
+function cargarImagen(url){
+  return new Promise(ok => { const i = new Image(); i.crossOrigin = 'anonymous';
+    const tm = setTimeout(() => ok(null), 8000);
+    i.onload = () => { clearTimeout(tm); ok(i); }; i.onerror = () => { clearTimeout(tm); ok(null); }; i.src = url; });
+}
+async function generarComprobantePago(p){
+  try{ await document.fonts.load('700 40px "Atkinson Hyperlegible"'); await document.fonts.load('400 28px "Atkinson Hyperlegible"'); }catch{}
+  const [logo, foto] = await Promise.all([cargarLogo(), p.archivo_url && !esPdf(p.archivo_url) ? cargarImagen(p.archivo_url) : null]);
+  const W=1080, H=1350, c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  const F = (peso, tam) => `${peso} ${tam}px "Atkinson Hyperlegible", Arial, sans-serif`;
+  const rr = (X,Y,w,h,r,fill,stroke) => { x.beginPath(); x.roundRect(X,Y,w,h,r); if(fill){x.fillStyle=fill; x.fill();} if(stroke){x.strokeStyle=stroke; x.lineWidth=2; x.stroke();} };
+  x.fillStyle='#EEF2F2'; x.fillRect(0,0,W,H);
+  x.fillStyle='#1D4F66'; x.fillRect(0,0,W,150);
+  if(logo) x.drawImage(logo, 56, 43, 64, 64);
+  x.fillStyle='#fff'; x.font=F(700,40); x.fillText('Comprobante de pago', 140, 72);
+  x.font=F(400,26); x.globalAlpha=.88; x.fillText(`Centro Ocular Especializado · ${p.caja}`, 140, 110); x.globalAlpha=1;
+  x.textAlign='right'; x.font=F(700,26); x.fillText(p.folio||'', W-56, 70);
+  x.font=F(400,26); x.fillText(`${fechaCorta(p.creado)} · ${hora(p.creado)}`, W-56, 108); x.textAlign='left';
+  // Monto
+  let y = 180; rr(56,y,W-112,150,20,'#DCE9EF');
+  x.fillStyle='#1D4F66'; x.font=F(700,26); x.fillText('PAGO EN EFECTIVO', 92, y+56);
+  x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(`Pagó: ${String(p.usuario||'').split(' ').map(cap).join(' ')} · firmado con PIN`, 92, y+98);
+  x.fillStyle='#1D4F66'; x.font=F(700,64); x.textAlign='right'; x.fillText(money(p.monto), W-92, y+98); x.textAlign='left';
+  // Datos
+  y += 176;
+  const fac = p.factura_id ? `Abono a factura${p.factura_numero?' '+p.factura_numero:''}` : p.con_factura ? 'Sí' : (p.nota || 'Sin factura');
+  const filas = [['Proveedor', p.entidad_nombre||'—'], ['Concepto', p.concepto||'—'], ['Categoría', p.categoria||'—'], ['Factura', fac],
+                 ['Fecha y hora', `${fechaCorta(p.creado)} ${hora(p.creado)}`]];
+  const hD = 64 + filas.length*56 + 16; rr(56,y,W-112,hD,20,'#fff','#D5DDDF');
+  x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('DATOS DEL PAGO', 92, y+44);
+  let yy = y+60;
+  for(const [a,b] of filas){ x.strokeStyle='#E3E8EA'; x.lineWidth=2; x.beginPath(); x.moveTo(92,yy); x.lineTo(W-92,yy); x.stroke();
+    x.fillStyle='#5B6873'; x.font=F(400,26); x.fillText(a, 92, yy+38);
+    x.fillStyle='#18232C'; x.font=F(700,26); x.textAlign='right';
+    let v = String(b); while(x.measureText(v).width > W-92-330 && v.length > 4) v = v.slice(0,-2);
+    x.fillText(v === String(b) ? v : v + '…', W-92, yy+38); x.textAlign='left'; yy += 56; }
+  // Foto de la nota y QR
+  y += hD + 22;
+  const qTam = 220, bx = 56, bw = W-112-qTam-60, bh = H-56-y;
+  rr(bx, y, bw, bh, 20, '#fff', '#D5DDDF');
+  x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('NOTA / FACTURA', bx+36, y+44);
+  if(foto){ const aw = bw-72, ah = bh-90, e = Math.min(aw/foto.width, ah/foto.height);
+    const fw = foto.width*e, fh = foto.height*e; x.drawImage(foto, bx+36+(aw-fw)/2, y+66+(ah-fh)/2, fw, fh); }
+  else { x.fillStyle='#5B6873'; x.font=F(400,24); x.fillText(p.archivo_url ? 'Documento en PDF: véalo con el QR.' : 'Sin foto.', bx+36, y+100); }
+  const link = enlacePago(p.id), q = qrcode(0,'M'); q.addData(link); q.make();
+  const n = q.getModuleCount(), cel = qTam/n, qx = W-56-qTam-16, qy = y+16;
+  rr(qx-16, y, qTam+32, qTam+32, 14, '#fff', '#D5DDDF'); x.fillStyle='#000';
+  for(let r=0;r<n;r++) for(let k=0;k<n;k++) if(q.isDark(r,k)) x.fillRect(qx+k*cel, qy+r*cel, Math.ceil(cel), Math.ceil(cel));
+  x.fillStyle='#5B6873'; x.font=F(400,21);
+  ['Registrado en', 'COE Finanzas', 'como egreso.', '', 'Escanee el QR', 'para ver el pago', 'y la nota original.'].forEach((l,i) => x.fillText(l, qx-16, y+qTam+76+i*30));
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+  return { blob, link };
+}
+async function compartirPago(p){
+  const { blob, link } = await generarComprobantePago(p);
+  const nombre = `pago-${p.folio||p.id}.png`, archivo = new File([blob], nombre, {type:'image/png'});
+  const texto = `Caja COE · Pago ${p.folio} · ${p.entidad_nombre||''} · ${money(p.monto)}\nVer pago y nota: ${link}`;
+  if(navigator.canShare && navigator.canShare({files:[archivo]})){
+    try{ await navigator.share({files:[archivo], text:texto}); return; }
+    catch(e){ if(e.name==='AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+  toast('Se descargó la imagen: adjúntala en el chat de WhatsApp.');
+}
+
+function vistaCerrarPagos(id){
+  const st = { paso:1, conteo:{}, t:null };
+  const pintar = async () => {
+    clearTimeout(sondeo);
+    try{ st.t = await rpc('con_turno', {p_turno:id}); }catch(e){ return toast(e.message,true); }
+    const t = st.t, movs = t.movimientos||[], nom = ['Contar','Firmar'];
+    if(st.paso===1){
+      app.innerHTML = `
+        <div class="cabturno"><h1>Cerrar caja</h1><button class="btn sec chico" id="volver">Volver</button></div>
+        ${pasos(1, false, nom)}
+        <p class="sub" style="margin-top:12px">Cuenta todo el efectivo que queda en la caja.</p>
+        ${contadorHTML('cnt','Efectivo en caja')}
+        ${acciones('<button class="btn" id="sig">Siguiente</button>')}`;
+      montarContador('cnt', st.conteo);
+      $('#volver').onclick = () => vistaTurno(id);
+      $('#sig').onclick = () => { st.paso=2; pintar(); window.scrollTo(0,0); };
+      return;
+    }
+    const tol = Number(t.tolerancia)||0, ff = totalConteo(st.conteo), dif = ff - Number(t.disponible);
+    const estado = dif < -tol ? 'faltante' : dif > tol ? 'sobrante' : 'cuadrado';
+    const porConf = movs.filter(m => m.estado==='por_confirmar').length;
+    app.innerHTML = `
+      <div class="cabturno"><h1>Cerrar caja</h1><button class="btn sec chico" id="atras">Atrás</button></div>
+      ${pasos(2, false, nom)}
+      <div class="resultado ${estado}">${estado==='cuadrado'?ICO.ok:''}<div class="grande">${{cuadrado:'Cuadra',faltante:'Faltante',sobrante:'Sobrante'}[estado]}</div><div>${estado==='cuadrado'?'Diferencia '+money(0):money(Math.abs(dif))}</div></div>
+      <div class="card">
+        <div class="row"><span>Fondo inicial</span><b>${money(t.fondo_inicial_total)}</b></div>
+        <div class="row"><span>Recibido</span><b>+${money(sumaMov(movs,'ingreso'))}</b></div>
+        <div class="row"><span>Pagos (${movs.filter(m=>m.tipo==='pago'&&m.estado==='confirmado').length})</span><b>−${money(sumaMov(movs,'pago'))}</b></div>
+        <div class="row"><span>Debe haber</span><b>${money(t.disponible)}</b></div>
+        <div class="row"><span>Contaste</span><b>${money(ff)}</b></div></div>
+      ${porConf ? `<div class="aviso ojo">${porConf===1?'Un ingreso sigue':porConf+' ingresos siguen'} por confirmar; la Dirección lo confirma después.</div>` : ''}
+      ${estado!=='cuadrado' ? `<label for="just">Explica la diferencia</label><textarea id="just" placeholder="Qué pasó"></textarea>
+        <p class="sub" style="margin-top:6px">Tu explicación y el monto le llegan a la Dirección.</p>` : ''}
+      ${acciones(`<button class="btn ${estado==='cuadrado'?'ok':'peligro'}" id="firmar">Firmar con mi PIN</button>`)}`;
+    $('#atras').onclick = () => { st.paso=1; pintar(); };
+    $('#firmar').onclick = () => ocupado($('#firmar'), async () => {
+      const just = $('#just') ? $('#just').value.trim() : null;
+      if(estado!=='cuadrado' && !just) throw new Error('Escribe la explicación de la diferencia.');
+      const pin = await pedirPin('Firmar cierre', `Efectivo en caja: <b>${money(ff)}</b>.`); if(!pin) return;
+      const r = await rpc('con_cerrar_turno', {p_turno:id, p_fondo_final:conteoJSON(st.conteo), p_justificacion:just, p_pin:pin});
+      if(r.code==='JUSTIFICAR') throw new Error('El sistema detectó una diferencia. Escribe la explicación y vuelve a firmar.');
+      if(!r.ok) throw new Error(r.error || 'No se pudo cerrar la caja.');
+      await cargar(); vistaResultado(r, st.t, just);
+    });
+  };
+  pintar();
+}
+
+async function panelIngresosPorConfirmar(){
+  if(S.estado.usuario.rol!=='admin') return '';
+  let xs = []; try{ xs = await rpc('con_ingresos_por_confirmar'); }catch{ return ''; }
+  if(!xs.length) return '';
+  return `<div class="aviso ojo"><b>${xs.length===1?'Un ingreso de efectivo por confirmar':xs.length+' ingresos de efectivo por confirmar'}</b>
+    ${xs.map(i => `<div class="pend" style="margin-top:10px"><b>${money(i.monto)}</b> · ${esc(cap(i.recibio.split(' ')[0]))} registró que se lo entregó ${esc(i.entrega||'')} · ${fechaCorta(i.creado)} ${hora(i.creado)}${i.nota?'<br><span class="sub">'+esc(i.nota)+'</span>':''}
+      <div class="fila" style="margin-top:8px"><button class="btn sec chico" data-ingno="${i.id}" style="flex:1">No lo reconozco</button><button class="btn chico" data-ingsi="${i.id}" style="flex:1">Confirmar</button></div></div>`).join('')}</div>`;
+}
+function conectarIngresos(raiz){
+  const accion = (b, aceptar) => ocupado(b, async () => {
+    if(!aceptar && !confirm('¿Seguro que no entregaste ese dinero? Se avisará y no contará en la caja.')) return;
+    const pin = await pedirPin(aceptar ? 'Confirmar ingreso' : 'No reconozco el ingreso'); if(!pin) return;
+    const r = await rpc('con_confirmar_ingreso', {p_mov:b.dataset.ingsi||b.dataset.ingno, p_aceptar:aceptar, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    toast(aceptar ? 'Ingreso confirmado.' : 'Marcado como no reconocido.'); vistaPanel('hoy');
+  });
+  raiz.querySelectorAll('[data-ingsi]').forEach(b => b.onclick = () => accion(b, true));
+  raiz.querySelectorAll('[data-ingno]').forEach(b => b.onclick = () => accion(b, false));
+}
+
 // ===================== Resultado y reporte =====================
 function vistaResultado(r, t, just){
   const txt = {cuadrado:'La caja cuadró', faltante:`Faltante de ${money(Math.abs(r.dif_total))}`, sobrante:`Sobrante de ${money(r.dif_total)}`, revisar:'Cerrado con diferencias'}[r.estado];
-  const conDif = r.estado !== 'cuadrado';
+  const conDif = r.estado !== 'cuadrado', pg = t.modo==='pagos';
   app.innerHTML = `
-    <h1>Turno cerrado</h1>
-    <p class="sub">${esc(t.caja)} · Turno ${turnoTxt(t.turno)}</p>
+    <h1>${pg?'Caja cerrada':'Turno cerrado'}</h1>
+    <p class="sub">${esc(t.caja)} · ${pg?'Caja de pagos':'Turno '+turnoTxt(t.turno)}</p>
     <div class="resultado ${r.estado}">${r.estado==='cuadrado'?ICO.ok:''}<div class="grande">${txt}</div></div>
     <div class="aviso ${conDif?'mal':''}"><b>${conDif?'Envía el reporte antes de salir.':'Envía el reporte del cierre.'}</b> Toca el botón verde y elige el grupo <b>Caja COE</b>. El reporte lo genera el sistema; no lo cambies.</div>
     <button class="btn full" id="wa" style="background:#1F8F4E;margin:6px 0 4px">${ICO.wa} Enviar reporte por WhatsApp</button>
-    <button class="btn sec full" id="entregar" style="margin-top:8px">Entregar la caja a otra persona</button>
-    <p class="sub" style="text-align:center;margin-top:4px">Si alguien recibe la caja ahora, cuenten juntas y que ponga su PIN aquí.</p>
+    ${pg ? '' : `<button class="btn sec full" id="entregar" style="margin-top:8px">Entregar la caja a otra persona</button>
+    <p class="sub" style="text-align:center;margin-top:4px">Si alguien recibe la caja ahora, cuenten juntas y que ponga su PIN aquí.</p>`}
     ${acciones(`<button class="btn sec" id="ini" ${conDif?'disabled':''}>${conDif?'Primero envía el reporte':'Volver al inicio'}</button>`)}`;
   $('#ini').onclick = () => cargar();
-  $('#entregar').onclick = () => entregarCaja(t);
+  if($('#entregar')) $('#entregar').onclick = () => entregarCaja(t);
   $('#wa').onclick = () => ocupado($('#wa'), async () => {
     await compartirReporte(t.id);
     if(conDif) rpc('con_aviso_manual', {p_turno:t.id}).catch(()=>{});
@@ -966,9 +1300,10 @@ async function generarReporte(id){
   x.fillStyle='#EEF2F2'; x.fillRect(0,0,W,H);
   x.fillStyle='#1D4F66'; x.fillRect(0,0,W,150);
   if(logo) x.drawImage(logo, 56, 43, 64, 64);
-  x.fillStyle='#fff'; x.font=F(700,40); x.fillText('Cierre de caja', 140, 72);
+  const pagosR = t.modo==='pagos';
+  x.fillStyle='#fff'; x.font=F(700,40); x.fillText(pagosR ? 'Cierre de caja de pagos' : 'Cierre de caja', 140, 72);
   x.font=F(400,26); x.globalAlpha=.88; x.fillText(`Centro Ocular Especializado · ${t.caja}`, 140, 110); x.globalAlpha=1;
-  x.textAlign='right'; x.font=F(700,28); x.fillText(NOMBRE_TURNO[t.turno]||t.turno, W-56, 70);
+  x.textAlign='right'; x.font=F(700,28); x.fillText(pagosR ? 'Contabilidad' : (NOMBRE_TURNO[t.turno]||t.turno), W-56, 70);
   x.font=F(400,26); x.fillText(`${fechaCorta(t.fecha)} · ${hora(t.cerrado_en)}`, W-56, 108); x.textAlign='left';
   // Resultado
   let y = 180; rr(56,y,W-112,140,20,col[0]);
@@ -978,7 +1313,8 @@ async function generarReporte(id){
   x.fillStyle=col[1]; x.font=F(700,64); x.textAlign='right'; x.fillText(t.estado==='sin_cierre'?'—':sg(t.dif_total), W-92, y+92); x.textAlign='left';
   // Efectivo
   y += 166; const directo = t.modo==='deposito_directo';
-  const filas = directo ? [['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Gastos de caja chica',m(t.gastos_total)],['Depósito directo en el depositador',m(t.real_depositado)]]
+  const filas = pagosR ? [['Fondo inicial',m(t.fondo_inicial_total)],['Efectivo recibido',m(t.pos_efectivo)],['Pagos a proveedores',m(t.gastos_total)],['Fondo final contado',m(t.fondo_final_total)]]
+    : directo ? [['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Gastos de caja chica',m(t.gastos_total)],['Depósito directo en el depositador',m(t.real_depositado)]]
     : [['Fondo inicial',m(t.fondo_inicial_total)],['Efectivo cobrado (eOptics)',m(t.pos_efectivo)],['Depositado',m(t.real_depositado)],['Gastos de caja chica',m(t.gastos_total)],['Fondo final contado',m(t.fondo_final_total)]];
   const hEf = 70 + filas.length*50 + 56; rr(56,y,W-112,hEf,20,'#fff','#D5DDDF');
   x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('EFECTIVO', 92, y+46);
@@ -991,11 +1327,21 @@ async function generarReporte(id){
   else { x.fillText('Diferencia en efectivo', 92, yy+40); x.textAlign='right'; x.fillText(sg(t.dif_efectivo), W-92, yy+40); x.textAlign='left'; }
   // Otras formas
   y += hEf + 22; rr(56,y,W-112,170,20,'#fff','#D5DDDF');
+  if(pagosR){
+    const ps = (t.movimientos||[]).filter(v => v.tipo==='pago' && v.estado==='confirmado').sort((a,b) => b.monto-a.monto);
+    x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText(`PAGOS REGISTRADOS (${ps.length})`, 92, y+46);
+    yy = y+64; ps.slice(0,2).forEach(v => { x.fillStyle='#18232C'; x.font=F(400,26);
+      const nm0 = `${v.proveedor||''} · ${v.concepto||''}`; let nm = nm0; while(x.measureText(nm+'…').width > W-184-260 && nm.length>4) nm = nm.slice(0,-1); if(nm!==nm0) nm += '…';
+      x.fillText(nm, 92, yy+34); x.font=F(700,26); x.textAlign='right'; x.fillText(m(v.monto), W-92, yy+34); x.textAlign='left'; yy+=50; });
+    if(!ps.length){ x.fillStyle='#5B6873'; x.font=F(400,26); x.fillText('Sin pagos en esta caja.', 92, yy+34); }
+    else if(ps.length>2){ x.fillStyle='#5B6873'; x.font=F(400,22); x.textAlign='right'; x.fillText(`y ${ps.length-2} más (ver QR)`, W-92, y+46); x.textAlign='left'; }
+  } else {
   x.fillStyle='#5B6873'; x.font=F(700,22); x.fillText('OTRAS FORMAS DE PAGO', 92, y+46);
   const otras = [['Tarjeta · eOptics / voucher', `${m(t.pos_tarjeta)} / ${m(t.real_voucher)}`, Math.abs(Number(t.dif_tarjeta)||0)<=Number(t.tolerancia||0)],
                  ['Transferencia · eOptics / banco', `${m(t.pos_transferencia)} / ${m(t.real_banco)}`, Math.abs(Number(t.dif_transferencia)||0)<=Number(t.tolerancia||0)]];
   yy = y+64; for(const [a,b,ok] of otras){ x.fillStyle='#18232C'; x.font=F(400,26); x.fillText(a, 92, yy+34); x.font=F(700,26); x.textAlign='right';
     x.fillStyle = ok?'#18232C':'#B42318'; x.fillText(b + (ok?'  ✓':'  ✗'), W-92, yy+34); x.textAlign='left'; yy+=50; }
+  }
   // Justificación
   y += 192; const texto = t.aclaracion ? `${t.justificacion||''} Aclaración: ${t.aclaracion}` : (t.justificacion || 'Sin observaciones.');
   x.font=F(400,26); const lin = partirTexto(x, `“${texto}”`, W-184).slice(0,4); const hJ = 70 + lin.length*36;
@@ -1093,6 +1439,12 @@ async function panelHoy(){
   const vencido = (caja, tn) => { const h = caja.horarios?.[tn]; if(!h) return false;
     const [hh,mm]=h.cierre.split(':').map(Number); const [ah,am]=caja.hora_local.split(':').map(Number); return ah*60+am >= hh*60+mm+h.gracia; };
   const fila = (caja, tn) => {
+    if(caja.modo==='pagos'){
+      if(tn!=='matutino') return '';
+      const ts = d.turnos.filter(x => x.caja_id===caja.id);
+      if(!ts.length) return `<div class="row"><span>Caja de pagos</span><span class="chip vacio">Sin abrir</span></div>`;
+      return ts.map(x => `<button class="row fila-btn" data-det="${x.id}"><span>Caja de pagos · ${esc(cap(x.usuario.split(' ')[0]))}${x.pagado?' · pagado '+money(x.pagado):''}</span><span class="chip ${x.estado}">${x.estado==='abierto'?'Abierta '+hora(x.abierto_en):x.estado==='cuadrado'?'Cuadró':x.estado==='sin_cierre'?'Sin cierre':sgn(x.dif_total)}</span></button>`).join('');
+    }
     const ts = d.turnos.filter(x => x.caja_id===caja.id && x.turno===tn);
     if(!ts.length){ if(tn==='comida') return ''; const tarde = vencido(caja,tn);
       return `<div class="row"><span>${NOMBRE_TURNO[tn]}</span><span class="chip ${tarde?'faltante':'vacio'}">${tarde?'Sin registro':'Pendiente'}</span></div>`; }
@@ -1106,7 +1458,8 @@ async function panelHoy(){
   const falt = d.turnos.filter(x=>x.estado==='faltante').reduce((s,x)=>s+Math.abs(Number(x.dif_total)||0),0);
   const viejos = d.pendientes || [];
   const sucs = [...new Set(d.cajas.map(c=>c.sucursal))];
-  $('#pc').innerHTML = `
+  const ingresos = await panelIngresosPorConfirmar();
+  $('#pc').innerHTML = `${ingresos}
     ${viejos.length ? `<div class="aviso mal"><b>${viejos.length===1?'Hay un turno de otro día que nadie cerró':'Hay '+viejos.length+' turnos de otros días que nadie cerró'}.</b>
       ${viejos.map(v => `<button class="btn peligro full" style="margin-top:10px" data-forzar="${v.id}">Cerrar ${esc(v.caja)} · ${v.turno} ${fechaCorta(v.fecha)} · ${esc(cap(v.usuario.split(' ')[0]))}</button>`).join('')}</div>` : ''}
     <div class="kpi"><div><span>Cobrado hoy</span><b>${money(cobrado)}</b></div><div><span>Depositado</span><b>${money(depositado)}</b></div>
@@ -1118,6 +1471,7 @@ async function panelHoy(){
         <span class="chip ${!cd||cd.estado==='abierto'?'revisar':cd.estado==='cuadrado'?'cuadrado':'faltante'}">${!cd||cd.estado==='abierto'?'Pendiente':cd.estado==='cuadrado'?'Coincide':'Diferencia '+money(cd.diferencia)}</span></div>`; }).join('')}`;
   $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
   $('#pc').querySelectorAll('[data-forzar]').forEach(b => b.onclick = () => cerrarPendiente(b.dataset.forzar));
+  conectarIngresos($('#pc'));
 }
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1).toLowerCase() : '';
 
@@ -1186,7 +1540,7 @@ async function panelHistorial(){
 
 async function detalleTurno(id){
   let t; try{ t = await rpc('con_turno', {p_turno:id}); }catch(e){ return toast(e.message,true); }
-  const fila = (n,v) => `<tr><td>${n}</td><td>${v}</td></tr>`;
+  const fila = (n,v) => `<tr><td>${n}</td><td>${v}</td></tr>`, pgD = t.modo==='pagos';
   const m = modal(`
     <h3>${esc(t.caja)}, ${esc(t.turno)} ${fechaCorta(t.fecha)}</h3>
     <p class="sub">${esc(t.usuario)}${t.es_cobertura?' (cobertura)':''}. Abrió ${hora(t.abierto_en)}${t.cerrado_en?', cerró '+hora(t.cerrado_en):''}.</p>
@@ -1201,7 +1555,9 @@ async function detalleTurno(id){
     ${t.nota_apertura ? `<div class="aviso ojo"><b>Nota de apertura:</b> ${esc(t.nota_apertura)} (cierre anterior ${money(t.fondo_previo)})</div>` : ''}
     <table class="desglose">
       ${fila('Fondo inicial', money(t.fondo_inicial_total))}
-      ${t.estado!=='abierto' ? [
+      ${pgD ? [fila('Recibido', money(sumaMov(t.movimientos,'ingreso'))), fila('Pagado', money(sumaMov(t.movimientos,'pago'))),
+        t.estado==='abierto' ? fila('<b>Disponible</b>', `<b>${money(t.disponible)}</b>`) : fila('Fondo final contado', money(t.fondo_final_total)) + fila('<b>Diferencia</b>', `<b>${signo(t.dif_total)}</b>`)].join('')
+      : t.estado!=='abierto' ? [
         fila('Efectivo según eOptics', money(t.pos_efectivo)), fila('Depositado', money(t.real_depositado)),
         fila('Gastos de caja chica', money(t.gastos_total)), fila('Fondo final', money(t.fondo_final_total)),
         fila('Tarjeta eOptics / voucher', `${money(t.pos_tarjeta)} / ${money(t.real_voucher)}`),
@@ -1210,8 +1566,9 @@ async function detalleTurno(id){
         fila('<b>Diferencia tarjeta</b>', `<b>${signo(t.dif_tarjeta)}</b>`),
         fila('<b>Diferencia transferencia</b>', `<b>${signo(t.dif_transferencia)}</b>`)].join('') : ''}
     </table>
-    <h3 style="margin-top:18px;font-size:17px">Comprobantes</h3>
-    <div class="lista">${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado, ev:e}))].map(e =>
+    ${pgD ? `<h3 style="margin-top:18px;font-size:17px">Movimientos</h3><div class="card">${(t.movimientos||[]).length ? t.movimientos.map(filaMov).join('') : '<p class="sub" style="margin:0">Sin movimientos.</p>'}</div>` : ''}
+    <h3 style="margin-top:18px;font-size:17px" ${pgD?'hidden':''}>Comprobantes</h3>
+    <div class="lista" ${pgD?'hidden':''}>${[...t.evidencias.map(e=>({n:(EVID[e.tipo]?.n||'Comprobante de gasto'), a:e.archivo, h:e.creado, ev:e}))].map(e =>
       `<div class="item" data-arch="${esc(e.a)}" data-nom="${esc(e.n)}"><div class="t"><b>${esc(e.n)}</b><span>${hora(e.h)}${esImagen(e.a)?'':' · PDF'}${e.ev.estado==='ok'?'<br>'+(e.ev.lectura?.manual?'<b style="color:var(--warn)">Capturado a mano:</b> ':'')+textoLectura(e.ev):e.ev.estado==='descartado'?' · <b style="color:var(--bad)">borrado por la cajera</b>':e.ev.estado==='error'?' · no se pudo leer':e.ev.estado==='rechazado'?' · <b style="color:var(--bad)">rechazado:</b> '+esc(e.ev.error||''):''}</span></div>${esImagen(e.a) ? `<img data-thumb="${esc(e.a)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--paper);border:1px solid var(--line)">` : '<div class="v">Ver</div>'}</div>`).join('') || '<p class="sub">Sin comprobantes.</p>'}</div>
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
@@ -1239,6 +1596,7 @@ async function detalleTurno(id){
     m.querySelector('#dc').before(b); b.onclick = () => { m.remove(); cerrarPendiente(t.id); };
   }
   m.querySelectorAll('[data-arch]').forEach(x => x.onclick = () => abrirArchivo(x.dataset.arch, x.dataset.nom));
+  m.querySelectorAll('[data-mov]').forEach(x => x.onclick = () => verPago(x.dataset.mov, false, () => { m.remove(); detalleTurno(id); }));
   urlsFirmadas(t.evidencias.map(e=>e.archivo).filter(esImagen)).then(u => {
     m.querySelectorAll('[data-thumb]').forEach(i => { if(u[i.dataset.thumb]) i.src = u[i.dataset.thumb]; });
   }).catch(()=>{});
@@ -1246,7 +1604,7 @@ async function detalleTurno(id){
 
 async function panelAlertas(){
   const a = await rpc('con_admin_alertas', {p_limite:60});
-  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro'};
+  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión'};
   $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
@@ -1382,6 +1740,7 @@ $('#btnPanel').onclick = () => $('#btnPanel').dataset.en==='1' ? vistaInicio() :
 
 document.querySelectorAll('[data-ver]').forEach(e=>e.textContent=VERSION.split(' ')[0]);
 S.irTurno = new URLSearchParams(location.search).get('turno');
+S.irPago = new URLSearchParams(location.search).get('pago');
 (function init(){
   if(SUPABASE_ANON.startsWith('PEGA')){
     app.innerHTML = `<div class="aviso mal" style="margin-top:30px"><b>Falta configurar la llave de Supabase.</b><br>Abre este archivo, busca <code>SUPABASE_ANON</code> y pega la llave “anon public” de tu proyecto.</div>`;
