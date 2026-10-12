@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E6C71">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="COE Óptica">
+<title>COE Óptica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+/* COE Óptica · Layout: herramienta de mostrador — encabezado fijo, pestañas, tablero de semáforos arriba y listas operativas debajo */
+:root{
+  --bg:#F2F5F5; --surface:#FFFFFF; --ink:#14282C; --muted:#5A6D71; --line:#D7E0E1;
+  --accent:#0E6C71; --accent-ink:#FFFFFF; --accent-soft:#DDEFEF;
+  --ok:#23824F; --ok-soft:#E1F2E8; --warn:#B57A0A; --warn-soft:#FBF0D9; --bad:#BE3B28; --bad-soft:#FBE4DF;
+  --display:"Outfit", "Segoe UI", system-ui, sans-serif;
+  --body:"Figtree", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1618; --surface:#142124; --ink:#E3ECEC; --muted:#93A7AA; --line:#25393D;
+  --accent:#4DB2B3; --accent-ink:#06191B; --accent-soft:#16383A;
+  --ok:#5CC28B; --ok-soft:#173326; --warn:#E2AE48; --warn-soft:#3A2D10; --bad:#EE7A64; --bad-soft:#3E1C16; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1618; --surface:#142124; --ink:#E3ECEC; --muted:#93A7AA; --line:#25393D;
+  --accent:#4DB2B3; --accent-ink:#06191B; --accent-soft:#16383A;
+  --ok:#5CC28B; --ok-soft:#173326; --warn:#E2AE48; --warn-soft:#3A2D10; --bad:#EE7A64; --bad-soft:#3E1C16; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:12px;padding-block:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:38px;height:38px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.04em;flex:none}
+.brand b{font-family:var(--display);font-size:18px;font-weight:600;display:block;line-height:1.1}
+.brand small{color:var(--muted);font-size:12px}
+.proto{margin-left:auto;font-size:12px;font-weight:600;background:var(--warn-soft);color:var(--warn);padding:4px 10px;border-radius:99px;white-space:nowrap}
+.top-row select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 8px}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:0;scrollbar-width:none}
+nav.tabs button{border:0;background:none;padding:10px 12px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer}
+nav.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs .n{display:inline-block;min-width:20px;font-size:11px;background:var(--bad);color:#fff;border-radius:99px;padding:1px 6px;margin-left:4px;font-variant-numeric:tabular-nums}
+main{padding-block:18px 60px}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance}
+h1{font-size:24px} h2{font-size:18px} h3{font-size:15px}
+.sub{color:var(--muted);margin:2px 0 0}
+.section{display:grid;gap:12px;margin-top:22px}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+@media (max-width:760px){.pipe{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:grid;gap:6px;cursor:pointer;text-align:left}
+.stage:hover{border-color:var(--accent)}
+.stage .big{font-family:var(--display);font-size:28px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.dots{display:flex;gap:6px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted);flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:1px}
+.d-ok{background:var(--ok)}.d-warn{background:var(--warn)}.d-bad{background:var(--bad)}
+/* attention lists */
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px;min-width:0;align-content:start}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.count{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;padding:2px 9px;border-radius:99px;background:var(--bg);color:var(--muted)}
+.count.bad{background:var(--bad-soft);color:var(--bad)}.count.warn{background:var(--warn-soft);color:var(--warn)}
+.row{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);cursor:pointer}
+.row:first-of-type{border-top:0}
+.row:hover .nm{color:var(--accent)}
+.stripe{align-self:stretch;border-radius:4px}
+.s-ok{background:var(--ok)}.s-warn{background:var(--warn)}.s-bad{background:var(--bad)}.s-none{background:var(--line)}
+.nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.why{font-size:12px;font-weight:600;text-align:right;white-space:nowrap}
+.why.bad{color:var(--bad)}.why.warn{color:var(--warn)}.why.ok{color:var(--ok)}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+/* pills & buttons */
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.bad{background:var(--bad-soft);color:var(--bad)}.pill.mute{background:var(--bg);color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.wa{background:#1f8f55;border-color:#1f8f55;color:#fff}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:6px 10px;font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+/* table */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.rx{font-family:var(--mono);font-size:13px;white-space:nowrap}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--accent-soft)}
+/* filters */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 10px;min-width:0}
+.toolbar input{flex:1 1 220px}
+/* forms */
+.form{display:grid;gap:14px}
+.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.f{display:grid;gap:4px;min-width:0}
+.f.w2{grid-column:span 2}.f.w4{grid-column:1/-1}
+.f label{font-size:12px;font-weight:600;color:var(--muted)}
+.f input,.f select,.f textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+.f input.err,.f select.err{border-color:var(--bad);background:var(--bad-soft)}
+.hint{font-size:12px;color:var(--muted)}
+.alert{border-radius:8px;padding:10px 12px;font-size:14px;display:flex;gap:8px;align-items:flex-start}
+.alert.bad{background:var(--bad-soft);color:var(--bad)}.alert.warn{background:var(--warn-soft);color:var(--warn)}.alert.ok{background:var(--ok-soft);color:var(--ok)}.alert.info{background:var(--accent-soft);color:var(--accent)}
+.rxgrid{display:grid;grid-template-columns:40px repeat(6,minmax(0,1fr));gap:6px;align-items:center}
+@media (max-width:560px){.rxgrid{grid-template-columns:30px repeat(3,minmax(0,1fr))}.rxgrid .hidem{display:none}}
+.rxgrid input{font-family:var(--mono);text-align:center;padding:8px 4px}
+.rxgrid .eye{font-family:var(--display);font-weight:700}
+.rxgrid .h{font-size:11px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.05em}
+/* sheet (modal) */
+.scrim{position:fixed;inset:0;background:rgba(5,15,17,.45);z-index:40;display:flex;justify-content:flex-end}
+.sheet{background:var(--bg);width:min(620px,100%);height:100%;overflow-y:auto;padding:0 0 40px;box-shadow:-10px 0 30px rgba(0,0,0,.15)}
+.sheet-head{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));display:flex;gap:10px;align-items:flex-start;z-index:2}
+.sheet-head .x{margin-left:auto}
+.sheet-body{padding:16px;display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px;min-width:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:500;min-width:0}
+.timeline{display:grid;gap:0;margin:0;padding:0;list-style:none}
+.timeline li{display:grid;grid-template-columns:18px 1fr auto;gap:10px;font-size:14px;padding:5px 0;align-items:center}
+.timeline .tdot{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);background:var(--surface)}
+.timeline li.done .tdot{background:var(--accent);border-color:var(--accent)}
+.timeline li.cur .tdot{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.timeline li:not(.done):not(.cur){color:var(--muted)}
+.timeline .when{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.checks{display:grid;gap:6px}
+.checks label{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);cursor:pointer;font-size:14px}
+.checks input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.checks .lock{margin-left:auto;font-size:12px;color:var(--bad);font-weight:600}
+.money{font-variant-numeric:tabular-nums}
+.saldo{font-family:var(--display);font-size:22px;font-weight:600}
+.msg{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:14px;max-height:320px;overflow:auto}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:600;z-index:60;font-size:14px;max-width:calc(100% - 32px)}
+/* order sheets */
+.order{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.order .ohead{background:var(--accent-soft);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.order .ohead b{font-family:var(--display);font-size:16px}
+.order table th{background:transparent}
+.hv{display:grid;gap:10px;padding:14px}
+.hv .hvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.hv .hvgrid{grid-template-columns:1fr 1fr}}
+.hv .cell{border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;min-width:0}
+.hv .cell span{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tiny{font-size:12px;color:var(--muted)}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px}
+.switch input{width:18px;height:18px;accent-color:var(--accent)}
+.split{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+/* login */
+.login{max-width:760px;margin:24px auto;display:grid;gap:16px}
+.roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:600px){.roles{grid-template-columns:1fr}}
+.role{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px;align-content:start}
+.role[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.user{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+/* archivos */
+.upload{border:1.5px dashed var(--line);border-radius:8px;padding:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--bg)}
+.upload.ok{border-style:solid;border-color:var(--ok);background:var(--ok-soft)}
+.upload.err{border-color:var(--bad);background:var(--bad-soft)}
+.upload input{font-size:13px;max-width:100%}
+.upload img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.upload .fname{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+/* formato Sra. Angy: hoja de papel, colores fijos como el formato impreso */
+.paper{background:#fff;color:#111;border:1px solid #bbb;overflow-x:auto}
+.paper table{border-collapse:collapse;width:100%;min-width:620px;font-family:"Figtree",Arial,sans-serif}
+.paper th,.paper td{border:1px solid #333;padding:10px 12px;color:#111;vertical-align:middle}
+.paper .ttl{background:#BDF3F6;text-align:center;font-weight:700;font-size:20px;letter-spacing:.01em;text-transform:none}
+.paper .cols th{background:#D9D9D9;text-align:center;font-size:13px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#111}
+.paper td.g{white-space:nowrap}
+.paper td.g div+div{margin-top:14px}
+/* inicio por prioridades */
+.hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+@media (max-width:560px){.hero{grid-template-columns:1fr}}
+.bigbtn{display:flex;align-items:center;gap:14px;padding:18px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer;text-align:left;min-height:92px}
+.bigbtn:hover{border-color:var(--accent)}
+.bigbtn.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.bigbtn .ic{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-family:var(--display);font-size:26px;font-weight:600;background:var(--accent-soft);color:var(--accent);flex:none;font-variant-numeric:tabular-nums}
+.bigbtn.main .ic{background:rgba(255,255,255,.2);color:inherit}
+.bigbtn b{font-family:var(--display);font-size:20px;font-weight:600;display:block;line-height:1.2}
+.bigbtn small{opacity:.85;font-size:13px}
+.lane{display:grid;gap:8px;margin-top:22px}
+.lane-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.task{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.task:hover{border-color:var(--accent)}
+.pri{width:12px;height:12px;border-radius:50%;flex:none}
+.t1{font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t2{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t2 .wb{color:var(--bad);font-weight:600}.t2 .ww{color:var(--warn);font-weight:600}.t2 .wo{color:var(--ok);font-weight:600}
+.go{font-weight:700;font-size:13px;padding:8px 12px;border-radius:8px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.calm{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;cursor:pointer;flex-wrap:wrap}
+.calm:hover{border-color:var(--accent)}
+@media (max-width:560px){.task.pv{grid-template-columns:auto minmax(0,1fr)}.task.pv .actions{grid-column:2;justify-content:flex-start!important}.t2{white-space:normal}}
+/* segmentos */
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:8px 14px;font-weight:600;white-space:nowrap;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg .c{font-variant-numeric:tabular-nums;font-size:12px;opacity:.7}
+/* asistente de nuevo trabajo */
+.stepper{list-style:none;padding:0;margin:14px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stepper li{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.stepper li span{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);font-size:13px}
+.stepper li.cur{color:var(--ink)}.stepper li.cur span{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.stepper li.done span{border-color:var(--accent);color:var(--accent)}
+.stepper li+li::before{content:"";width:16px;height:2px;background:var(--line)}
+.drop{display:grid;justify-items:center;gap:8px;text-align:center;padding:36px 16px;border:2px dashed var(--accent);border-radius:14px;background:var(--accent-soft);cursor:pointer}
+.drop b{font-family:var(--display);font-size:20px;font-weight:600}
+.drop .ic{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:26px;font-weight:700}
+.drop input{max-width:100%;font-size:13px}
+.lks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+@media (max-width:560px){.lks{grid-template-columns:1fr}}
+.lk{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;min-width:0}
+.lk span{color:var(--muted)}.lk b{text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:99px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.newhdr{white-space:nowrap}
+/* ---- capa visual v4 ---- */
+.ico{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ico.sm{width:16px;height:16px}
+header.top{box-shadow:0 1px 0 var(--line)}
+.logo{width:40px;height:40px;border-width:2.5px}
+nav.tabs button{display:inline-flex;align-items:center;gap:7px;position:relative}
+nav.tabs button .ico{width:18px;height:18px}
+.av{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:15px;background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--ring,var(--line));flex:none;margin:3px}
+.av.bad{--ring:var(--bad)}.av.warn{--ring:var(--warn)}.av.ok{--ring:var(--ok)}
+.task{border-radius:14px;padding:12px 14px;box-shadow:0 1px 2px rgba(10,30,34,.04)}
+.task .go{display:inline-flex;align-items:center;gap:6px}
+.task .go .ico{width:16px;height:16px}
+.reason{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px}
+.reason.bad{background:var(--bad-soft);color:var(--bad)}.reason.warn{background:var(--warn-soft);color:var(--warn)}.reason.ok{background:var(--ok-soft);color:var(--ok)}
+.t2{display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal;margin-top:3px}
+.flow{display:flex;gap:0;overflow-x:auto;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;scrollbar-width:none}
+.flow button{flex:1 0 auto;min-width:92px;border:0;background:none;border-radius:10px;padding:8px 10px;cursor:pointer;display:grid;gap:2px;justify-items:center;position:relative;color:var(--ink)}
+.flow button:hover{background:var(--accent-soft)}
+.flow button+button::before{content:"";position:absolute;left:-4px;top:50%;width:8px;height:8px;border-top:2px solid var(--line);border-right:2px solid var(--line);transform:translateY(-50%) rotate(45deg)}
+.flow .fn{font-family:var(--display);font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.flow .fl{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap}
+.flow .fd{width:7px;height:7px;border-radius:50%;position:absolute;top:8px;right:14px}
+.datel{font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+.hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.hello h1{font-size:28px}
+.bigbtn{border-radius:18px;min-height:100px;box-shadow:0 1px 2px rgba(10,30,34,.05)}
+.bigbtn.main{box-shadow:0 8px 20px -10px var(--accent)}
+.bigbtn .ic .ico{width:26px;height:26px}
+.calm{border-style:solid;border-radius:14px}
+.calm .lft{display:flex;align-items:center;gap:10px}
+.calm .lft .ico{color:var(--accent)}
+.login .brandbig{display:flex;align-items:center;gap:14px}
+.login .brandbig .logo{width:56px;height:56px;font-size:15px}
+.role{border-radius:16px}
+.role .ico{width:28px;height:28px;color:var(--accent)}
+.userbtn{border:0;background:var(--bg);border-radius:99px;padding:6px 10px;display:inline-flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;color:var(--muted)}
+@media (max-width:760px){
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px));gap:0;justify-content:space-around;overflow:visible}
+  nav.tabs button{flex-direction:column;flex:1 1 0;min-width:0;gap:2px;font-size:10.5px;padding:6px 2px;border-bottom:0;border-top:3px solid transparent}
+  nav.tabs button[aria-selected="true"]{border-top-color:var(--accent);border-bottom-color:transparent}
+  nav.tabs button .ico{width:22px;height:22px}
+  nav.tabs .lbl{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  nav.tabs .n{position:absolute;top:2px;left:calc(50% + 6px);margin:0}
+  main{padding-bottom:110px}
+  #uname,.proto{display:none}
+  .hello h1{font-size:24px}
+  .task{grid-template-columns:auto minmax(0,1fr)}
+  .task .go{grid-column:2;justify-self:start}
+}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}}
+
+/* ---- app conectada ---- */
+.scrim.center{justify-content:center;align-items:center;padding:16px;z-index:50}
+.dlg{width:min(480px,100%);max-height:90vh;overflow:auto}
+.toast.bad{background:var(--bad);color:#fff}
+.linkbtn{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0;text-decoration:underline}
+input.ro{background:var(--ok-soft)!important;border-color:var(--ok)!important;font-weight:600}
+body.busy{cursor:progress}
+body.busy .btn.primary{opacity:.6;pointer-events:none}
+.login form.role{display:grid;gap:12px}
+#printzone{display:none}
+@media print{
+  body.printing>*:not(#printzone){display:none!important}
+  body.printing #printzone{display:block!important;color:#000;font-family:Figtree,Arial,sans-serif;font-size:12px}
+  #printzone .phead{display:flex;gap:12px;align-items:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
+  #printzone .logo{border-color:#000;color:#000}
+  #printzone h2{font-size:18px;margin:6px 0}#printzone h3{font-size:13px;margin:10px 0 2px}
+  #printzone p{margin:4px 0}
+  #printzone .ptab{width:100%;border-collapse:collapse;margin:8px 0}
+  #printzone .ptab td,#printzone .ptab th{border:1px solid #333;padding:6px 8px;text-align:left;color:#000;background:#fff;font-size:12px;text-transform:none;letter-spacing:0}
+  #printzone .ptab.grid td{text-align:center;font-family:monospace;font-size:14px}
+  #printzone .paper{border:0}
+  @page{size:letter;margin:14mm}
+}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand">
+        <div class="logo" title="Centro Ocular Especializado">COE</div>
+        <div><b>COE Óptica</b><small>Centro Ocular Especializado</small></div>
+      </div>
+      <button class="btn primary sm newhdr" id="hdrNew" hidden><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nuevo trabajo</button>
+      <div class="user" id="userbox" hidden><select id="sede" aria-label="Sede"><option value="all">Todas las sedes</option><option>Tacámbaro</option><option>Morelia</option></select><span id="uname"></span><button class="userbtn" id="logout" aria-label="Cerrar sesión"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></svg>Salir</button></div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+  </div>
+</header>
+<main class="wrap" id="main"><div class="empty" style="padding:40px 0">Cargando…</div></main>
+<div id="layer"></div>
+<div id="printzone"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+/* ================= COE Óptica · núcleo ================= */
+const SB_URL='https://ckjkdenwqicdjvodflba.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNramtkZW53cWljZGp2b2RmbGJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MDIzMzgsImV4cCI6MjA4OTE3ODMzOH0.7pd1oAevIWY81e0DTSMBFtzSECfQNa_mOqstG_UEj-0';
+const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+let TOKEN=store.get('coeopt-token'), DB=null, CFG=null, ME=null, HOY=new Date();
+let VIEW=store.get('coeopt-tab')||'', SEDE='all', OPEN=null, BUSY=false;
+
+/* ---------- utilidades ---------- */
+const dayMs=864e5;
+const toD=s=>{if(!s) return null; if(s instanceof Date) return s; const t=String(s); return new Date(t.length<=10?t+'T12:00:00':t)};
+const diff=(a,b)=>Math.round((toD(b)-toD(a))/dayMs);
+const fmt=d=>d? toD(d).toLocaleDateString('es-MX',{day:'numeric',month:'short'}).replace('.','') : '—';
+const fmtY=d=>d? toD(d).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}).replace('.','') : '—';
+const iso=d=>{const x=toD(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`};
+const money=n=>'$'+(Math.round((+n||0)*100)/100).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const addDays=(d,n)=>{const x=new Date(toD(d));x.setDate(x.getDate()+n);return x};
+const addMonths=(d,n)=>{const x=new Date(toD(d));x.setMonth(x.getMonth()+n);return x};
+function nextWeekday(from,wd){const d=new Date(toD(from));d.setDate(d.getDate()+((wd-d.getDay()+7)%7||7));return d}
+const num=v=>{const n=parseFloat(String(v??'').replace(/[$,\s]/g,''));return isNaN(n)?0:n};
+const fmtTel=x=>{const t=String(x||'').replace(/\D/g,'');return t.length===10?`(${t.slice(0,3)}) ${t.slice(3,6)} ${t.slice(6)}`:t};
+const edad=n=>{if(!n) return '—';const b=toD(n);let a=HOY.getFullYear()-b.getFullYear();if(HOY<new Date(HOY.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
+const iniciales=n=>String(n||'').split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+function toast(m,bad){const el=document.createElement('div');el.className='toast'+(bad?' bad':'');el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),bad?4800:2600)}
+function cleanErr(e){let m=(e&&(e.message||e.error_description||e.details))||String(e);m=m.replace(/^(DATOS|REGLA|PERMISO|PIN|LOGIN|SESION|ACCESO):\s*/,'');return m}
+
+/* ---------- servidor ---------- */
+async function rpc(fn,args){
+  const {data,error}=await sb.rpc(fn,args);
+  if(error){ if(/^SESION/.test(error.message||'')){salir(true)} throw error }
+  return data;
+}
+async function cargar(){
+  DB=await rpc('opt_datos',{p_token:TOKEN});
+  CFG=DB.config; ME=DB.yo; HOY=toD(DB.hoy);
+  DB.trabajos.forEach(t=>{t.pagos=t.pagos||[];t.eventos=t.eventos||{};t.checklist=t.checklist||{};t.rx=t.rx||{};t.armazon=t.armazon||{};t.precio=t.precio||{};t.costo=t.costo||{}});
+}
+async function act(accion,data,pin){
+  if(BUSY) return null; BUSY=true; document.body.classList.add('busy');
+  try{const r=await rpc('opt_accion',{p_token:TOKEN,p_accion:accion,p_data:data||{},p_pin:pin||null});await cargar();render();if(OPEN)drawSheet();return r}
+  catch(e){toast(cleanErr(e),true);return null}
+  finally{BUSY=false;document.body.classList.remove('busy')}
+}
+async function edge(body){
+  const r=await fetch(`${SB_URL}/functions/v1/opt-archivo`,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify({token:TOKEN,...body})});
+  const j=await r.json().catch(()=>({error:'Respuesta no válida del servidor'}));
+  if(!r.ok||j.error) throw new Error(j.error||('Error '+r.status));
+  return j;
+}
+async function comprimir(file){
+  if(!file.type.startsWith('image/')||/heic|heif/i.test(file.type)) return file;
+  const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=URL.createObjectURL(file)});
+  const k=Math.min(1,1600/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.78));
+  return new File([blob],file.name.replace(/\.\w+$/,'')+'.jpg',{type:'image/jpeg'});
+}
+async function subirArchivo(file){
+  const f=await comprimir(file);
+  const {path,token}=await edge({accion:'subir',nombre:f.name});
+  const {error}=await sb.storage.from('optica').uploadToSignedUrl(path,token,f,{contentType:f.type||'application/octet-stream'});
+  if(error) throw error;
+  return path;
+}
+async function verArchivo(path){
+  const w=window.open('','_blank');
+  try{const {url}=await edge({accion:'ver',ruta:path}); if(w) w.location=url; else location.href=url}
+  catch(e){if(w) w.close(); toast(cleanErr(e),true)}
+}
+
+/* ---------- lectura del ticket (PDF de eOptics) ---------- */
+async function textoPDF(file){
+  if(!window.pdfjsLib||file.type!=='application/pdf') return '';
+  try{const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;let out='';
+    for(let i=1;i<=Math.min(pdf.numPages,3);i++){const p=await pdf.getPage(i);const tc=await p.getTextContent();out+=tc.items.map(x=>x.str+(x.hasEOL?'\n':' ')).join('')+'\n'}
+    return out}catch(e){return ''}
+}
+function leerTicket(tx){
+  const r={}; if(!tx) return r; const T=tx.replace(/ /g,' ');
+  const m=(re,i=1)=>{const x=re.exec(T);return x?x[i].trim():''};
+  r.venta=m(/venta\s*(?:no\.?|n[uú]m(?:ero)?\.?|#|:)?\s*:?\s*(\d{4,8})/i);
+  r.id_trabajo=m(/id\s*(?:de\s*)?trabajo\s*(?:no\.?|#|:)?\s*:?\s*(\d{3,8})/i);
+  r.total=m(/total\s*(?:a\s*pagar|venta|neto)?\s*:?\s*\$?\s*([\d,]+\.\d{2})/i);
+  r.anticipo=m(/(?:anticipo|abono|a\s*cuenta|su\s*pago|pago\s*recibido|importe\s*pagado|pagado)\s*:?\s*\$?\s*([\d,]+\.\d{2})/i);
+  r.paciente=m(/(?:paciente|cliente)\s*:?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ.]+(?:\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ.]+){1,4})/);
+  r.telefono=m(/(?:tel[eé]fono|tel\.?|cel(?:ular)?)\s*:?\s*(\d{10})/i);
+  const f=m(/\b(efectivo|tarjeta|transferencia|cr[eé]dito|d[eé]bito)\b/i); r.forma=f?(/transf/i.test(f)?'Transferencia':/efect/i.test(f)?'Efectivo':'Tarjeta'):'';
+  Object.keys(r).forEach(k=>{if(!r[k]) delete r[k]});
+  if(r.total) r.total=num(r.total); if(r.anticipo) r.anticipo=num(r.anticipo);
+  return r;
+}
+
+/* ---------- reglas de negocio ---------- */
+const ESTADOS=[['capturado','Capturado'],['enviado','En laboratorio'],['recibido','Recibido · falta revisión'],['listo','Listo para avisar'],['avisado','Avisado · por recoger'],['entregado','Entregado'],['garantia','Garantía']];
+const ENOM=Object.fromEntries(ESTADOS);
+const GRUPOS=[['capturado','Por pedir'],['enviado','En laboratorio'],['recibido','Por revisar'],['listo','Por avisar'],['avisado','Por recoger'],['garantia','Garantía'],['entregado','Entregados']];
+const PATENTADAS=['Blue Free','Blue-ray','Alta Force','Panoramic','Thin & Lite','Thin and Lite'];
+const total=t=>+t.total||0;
+const pagado=t=>t.pagos.reduce((s,p)=>s+(+p.monto||0),0);
+const saldo=t=>Math.max(0,Math.round((total(t)-pagado(t))*100)/100);
+const pctPag=t=>total(t)?pagado(t)/total(t)*100:0;
+const patentada=t=>PATENTADAS.some(p=>((t.tratamiento||'')+' '+(t.material||'')).toLowerCase().includes(p.toLowerCase()));
+const ev=(t,k)=>t.eventos[k]?toD(t.eventos[k]):null;
+const vis=()=>DB.trabajos.filter(t=>SEDE==='all'||t.sede===SEDE);
+function margen(t){
+  const out=[];
+  const pa=+t.precio.armazon||0, ca=+t.costo.armazon||0, pm=+t.precio.mica||0, cm=+t.costo.mica||0;
+  if(!t.armazon.propio&&ca&&pa/ca<CFG.factor.armazon) out.push(`armazón ×${(pa/ca).toFixed(2)}`);
+  if(cm&&pm/cm<CFG.factor.mica) out.push(`mica ×${(pm/cm).toFixed(2)}`);
+  return out;
+}
+function sem(t){
+  switch(t.estado){
+    case 'capturado':{
+      if(pctPag(t)<CFG.anticipo) return ['bad',`Anticipo ${Math.round(pctPag(t))}%: falta para pedir`];
+      if(!t.respaldo) return ['warn','Sin respaldo de graduación'];
+      const d=diff(t.fecha_venta,HOY); return d>=1?['bad',`Sin pedir hace ${d} d`]:['ok','Va en el pedido de hoy'];}
+    case 'enviado':{if(!t.llega) return ['ok','En laboratorio'];const d=diff(HOY,t.llega); if(d<0) return ['bad',`Laboratorio atrasado ${-d} d`]; if(d<=1) return ['warn',d?'Llega mañana':'Llega hoy']; return ['ok',`Llega ${fmt(t.llega)}`];}
+    case 'recibido':{const d=diff(ev(t,'recibido'),HOY); return d>=1?['bad',`Sin revisar hace ${d} d`]:['warn','Revisar hoy'];}
+    case 'listo':{const d=diff(ev(t,'listo'),HOY); return d>=1?['bad',`Sin avisar hace ${d} d`]:['warn','Avisar hoy'];}
+    case 'avisado':{const d=diff(ev(t,'avisado'),HOY); if(d>30) return ['bad',`${d} d sin recoger`]; if(d>7) return ['warn',`${d} d sin recoger`]; return ['ok',`Avisado hace ${d} d`];}
+    case 'garantia': return ['bad','Garantía abierta'];
+    default: return ['ok','Entregado'];
+  }
+}
+function prioridad(t){ if(t.estado==='entregado') return null; const l=sem(t)[0]; if(l==='bad') return 'ahora'; if(l==='warn'||['capturado','listo','recibido'].includes(t.estado)) return 'hoy'; return 'ok'; }
+function accion(t){
+  const l=sem(t)[0];
+  switch(t.estado){
+    case 'capturado': return pctPag(t)<CFG.anticipo?'Cobrar anticipo':(!t.respaldo?'Subir respaldo':'Va en el pedido');
+    case 'enviado': return l==='bad'?'Reclamar al laboratorio':'Ver';
+    case 'recibido': return 'Revisar calidad';
+    case 'listo': return 'Avisar al paciente';
+    case 'avisado': return l==='ok'?'Ver':(saldo(t)?'Llamar y cobrar':'Llamar al paciente');
+    case 'garantia': return 'Seguir garantía';
+  } return 'Ver';
+}
+function llegadaLab(lab){
+  const L=(CFG.labs||[]).find(x=>x.nombre===lab);
+  if(L&&L.recoleccion_dia!=null&&L.recoleccion_dia!=='') return nextWeekday(HOY,+L.recoleccion_dia);
+  return addDays(HOY,L?(+L.dias||5):5);
+}
+function comision(t){
+  const lines=[]; const fe=ev(t,'entregado')||HOY;
+  const vig=(CFG.promos||[]).filter(p=>p.activa&&fe>=toD(p.ini)&&fe<=toD(p.fin));
+  const lc=/contacto/i.test(t.tipo||'');
+  const partes=lc?[['lc',+t.precio.mica||total(t),'Lentes de contacto']]:[['armazon',+t.precio.armazon||0,'Armazón'],['mica',+t.precio.mica||0,'Micas']];
+  let sum=0;
+  partes.forEach(([cat,base,lab])=>{ if(!base) return;
+    let pct=+CFG.com[cat]||0; const marca=((t.armazon.marca||'')+' '+(t.tratamiento||'')+' '+(t.material||'')).toLowerCase();
+    const promo=vig.find(p=>p.cat===cat&&p.marca&&marca.includes(String(p.marca).toLowerCase()));
+    if(promo) pct+=+promo.extra||0;
+    if(t.referido&&CFG.ref&&+CFG.ref.comExtra) pct+=+CFG.ref.comExtra;
+    const m=Math.round(base*pct)/100; sum+=m; lines.push({lab,base,pct,m,promo:promo?promo.nombre:''});
+  });
+  return {sum:Math.round(sum*100)/100,lines};
+}
+function refBenef(){const r=CFG.ref||{};return r.nuevoTipo==='monto'?money(r.nuevoValor)+' de descuento':r.nuevoTipo==='porcentaje'?r.nuevoValor+'% de descuento':'Antirreflejante sin costo'}
+const clinic=()=>`WhatsApp Óptica ${fmtTel(CFG.waOptica)} · Tel. clínica (443) 465 6645 / (459) 596 2268`;
+const waLink=(tel,txt)=>`https://wa.me/52${String(tel||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(txt)}`;
+
+/* ================= íconos, pestañas y ventanas ================= */
+const ICP={
+ home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+ list:'<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+ file:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+ box:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/>',
+ chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+ coin:'<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .9 3 2.1-1.3 1.9-3 1.9c-1.5 0-2.6-.6-3-1.6M12 6v2M12 16v2"/>',
+ chart:'<path d="M4 20V11M10 20V5M16 20v-7M2 20h20"/>',
+ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>', upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
+ eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ alert:'<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 18h.01"/>',
+ truck:'<path d="M3 6h11v10H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+ cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+ check:'<path d="M5 12l5 5L20 7"/>', chev:'<path d="M9 6l6 6-6 6"/>',
+ ticket:'<path d="M4 4h16v16l-3-2-3 2-3-2-3 2-4-2z"/><path d="M8 9h8M8 13h5"/>',
+ glasses:'<circle cx="6.5" cy="14" r="3.5"/><circle cx="17.5" cy="14" r="3.5"/><path d="M10 14h4M3 14l1.5-7H7M21 14l-1.5-7H17"/>',
+ print:'<path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/>'
+};
+const ico=(n,c='')=>`<svg class="ico ${c}" viewBox="0 0 24 24" aria-hidden="true">${ICP[n]||''}</svg>`;
+const TABSET={
+  ventas:[['tablero','Inicio'],['trabajos','Trabajos'],['expediente','Expediente'],['pedidos','Pedidos'],['posventa','Posventa'],['comisiones','Mis comisiones']],
+  admin:[['resumen','Resumen'],['trabajos','Trabajos'],['expediente','Expediente'],['tickets','Tickets'],['comisiones','Comisiones'],['referidos','Referidos'],['config','Configuración']],
+  contabilidad:[['resumen','Resumen'],['trabajos','Trabajos'],['tickets','Tickets'],['comisiones','Comisiones']]
+};
+const TAB_ICON={tablero:'home',trabajos:'list',expediente:'file',pedidos:'box',posventa:'chat',comisiones:'coin',resumen:'chart',referidos:'users',config:'gear',tickets:'ticket'};
+const TAB_SHORT={comisiones:'Comisiones',config:'Config.'};
+const ACT_ICON={'Cobrar anticipo':'cash','Subir respaldo':'upload','Va en el pedido':'box','Reclamar al laboratorio':'truck','Revisar calidad':'eye','Avisar al paciente':'chat','Llamar y cobrar':'cash','Llamar al paciente':'chat','Seguir garantía':'alert','Ver':'chev'};
+
+function renderTabs(){
+  const nav=document.getElementById('tabs');
+  if(!ME){nav.innerHTML='';document.getElementById('userbox').hidden=true;document.getElementById('hdrNew').hidden=true;return}
+  const TABS=TABSET[ME.rol]||TABSET.ventas;
+  if(!TABS.some(t=>t[0]===VIEW)&&!(VIEW==='nuevo'&&ME.rol!=='contabilidad')) VIEW=TABS[0][0];
+  document.getElementById('userbox').hidden=false;
+  document.getElementById('hdrNew').hidden=!(ME.rol==='ventas'||ME.rol==='admin');
+  document.getElementById('uname').textContent=ME.nombre.split(' ').slice(0,2).join(' ');
+  const urg=vis().filter(t=>prioridad(t)==='ahora').length;
+  const pv=posventaLista().filter(p=>!p.hecho).length;
+  const tk=DB.trabajos.flatMap(t=>t.pagos).filter(p=>!p.verificado).length;
+  nav.innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${k===VIEW}" data-tab="${k}">${ico(TAB_ICON[k])}<span class="lbl">${innerWidth<=760&&TAB_SHORT[k]?TAB_SHORT[k]:l}</span>${(k==='tablero'||k==='resumen')&&urg?`<span class="n">${urg}</span>`:''}${k==='posventa'&&pv?`<span class="n" style="background:var(--accent)">${pv}</span>`:''}${k==='tickets'&&tk?`<span class="n" style="background:var(--warn)">${tk}</span>`:''}</button>`).join('');
+}
+const VISTAS={};
+function render(){
+  renderTabs();
+  const m=document.getElementById('main');
+  if(!ME){m.innerHTML=vLogin();bindView();return}
+  if(ME.debe_cambiar){m.innerHTML=vCambio();bindView();return}
+  m.innerHTML=(VISTAS[VIEW]||VISTAS.tablero)();bindView();
+}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;VIEW=b.dataset.tab;if(VIEW==='expediente'){EX.sel=null;EX.form=false;EX.nuevo=false}store.set('coeopt-tab',VIEW);render();window.scrollTo(0,0)});
+document.getElementById('hdrNew').addEventListener('click',()=>{resetNew();VIEW='nuevo';render();window.scrollTo(0,0)});
+document.getElementById('sede').addEventListener('change',e=>{SEDE=e.target.value;render()});
+document.getElementById('logout').addEventListener('click',()=>salir());
+addEventListener('resize',()=>{if(ME)renderTabs()});
+
+async function salir(expirada){
+  const t=TOKEN; TOKEN=null; ME=null; DB=null; store.del('coeopt-token'); closeSheet();
+  if(t&&!expirada){try{await sb.rpc('opt_logout',{p_token:t})}catch(e){}}
+  if(expirada) toast('Su sesión terminó. Entre de nuevo.',true);
+  render();
+}
+
+/* ---------- ventanas emergentes ---------- */
+function modal(html,onClick){
+  const L=document.getElementById('layer');
+  const box=document.createElement('div'); box.className='scrim center';
+  box.innerHTML=`<div class="card dlg" role="dialog" aria-modal="true">${html}</div>`;
+  L.appendChild(box);
+  box.addEventListener('click',e=>{e.stopPropagation();if(e.target===box||e.target.closest('[data-k]')){box.remove();return}onClick&&onClick(e,box)});
+  const f=box.querySelector('input,select,textarea,button'); f&&setTimeout(()=>f.focus(),30);
+  return box;
+}
+function pedirPIN(titulo){
+  return new Promise(res=>{
+    const box=modal(`<h3>${esc(titulo||'Firme con su PIN')}</h3><p class="tiny">El movimiento queda registrado a su nombre.</p>
+      <div class="f"><label for="pin-in">PIN</label><input id="pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+      <div class="actions"><button class="btn primary" data-ok>Firmar</button><button class="btn" data-k>Cancelar</button></div>`,(e,b)=>{
+        if(e.target.closest('[data-ok]')){const v=b.querySelector('#pin-in').value.trim();if(!/^\d{4,6}$/.test(v)){toast('El PIN es de 4 a 6 dígitos',true);return}b.remove();res(v)}});
+    box.querySelector('#pin-in').addEventListener('keydown',e=>{if(e.key==='Enter')box.querySelector('[data-ok]').click()});
+    box.addEventListener('click',e=>{if(e.target===box||e.target.closest('[data-k]'))res(null)});
+  });
+}
+function mensajeWA(texto,tel,onSent){
+  const box=modal(`<h3>Mensaje de WhatsApp</h3><p class="tiny">Para ${esc(fmtTel(tel))} · se envía desde el WhatsApp de la óptica ${fmtTel(CFG.waOptica)}.</p>
+    <textarea id="copybox" class="msg" rows="9" style="width:100%">${esc(texto)}</textarea>
+    <div class="actions"><a class="btn wa" data-open-wa target="_blank" rel="noopener" href="${waLink(tel,texto)}">Abrir WhatsApp</a><button class="btn" data-c>Copiar</button>${onSent?'<button class="btn primary" data-s>Registrar como enviado</button>':''}<button class="btn" data-k>Cerrar</button></div>`,(e,b)=>{
+      if(e.target.closest('[data-open-wa]')){const t=b.querySelector('#copybox').value;e.target.closest('[data-open-wa]').href=waLink(tel,t)}
+      if(e.target.closest('[data-c]')){const t=b.querySelector('#copybox');navigator.clipboard?.writeText(t.value).then(()=>toast('Mensaje copiado'),()=>{t.select();toast('Seleccionado: copie con Ctrl/Cmd + C')})}
+      if(e.target.closest('[data-s]')){b.remove();onSent()}
+    });
+}
+/* pago con ticket: el monto se lee del PDF; si es foto se captura y queda por verificar */
+function modalPago(t,titulo,sugerido){
+  let file=null, leido=null;
+  const box=modal(`<h3>${esc(titulo)}</h3><p class="tiny">Suba el ticket de eOptics. Si es PDF, el monto se lee del ticket y no se puede editar. Si es foto, Contabilidad lo verifica.</p>
+    <label class="drop" style="padding:18px"><span class="ic">${ico('upload')}</span><input type="file" accept="image/*,application/pdf" id="pg-file"><span class="tiny">PDF o foto del ticket</span></label>
+    <div id="pg-out" class="form"></div>
+    <div class="actions"><button class="btn primary" data-ok disabled>Registrar pago</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+      if(!e.target.closest('[data-ok]')) return;
+      const monto=leido&&leido.anticipo?leido.anticipo:num(b.querySelector('#pg-monto')?.value);
+      const forma=leido&&leido.forma?leido.forma:b.querySelector('#pg-forma')?.value||'Efectivo';
+      if(monto<=0){toast('Escriba el monto del ticket',true);return}
+      if(monto>saldo(t)+0.01){toast(`El pago es mayor al saldo (${money(saldo(t))})`,true);return}
+      const btn=b.querySelector('[data-ok]');btn.disabled=true;btn.textContent='Subiendo ticket…';
+      try{const path=await subirArchivo(file);b.remove();
+        const r=await act('pago_registrar',{trabajo_id:t.id,monto,forma,archivo:path,leido:!!(leido&&leido.anticipo)});
+        if(r) toast('Pago registrado con su ticket');
+      }catch(err){btn.disabled=false;btn.textContent='Registrar pago';toast(cleanErr(err),true)}
+    });
+  box.querySelector('#pg-file').addEventListener('change',async e=>{
+    file=e.target.files[0]; if(!file) return; const out=box.querySelector('#pg-out'); out.innerHTML='<div class="alert info">Leyendo ticket…</div>';
+    leido=leerTicket(await textoPDF(file));
+    if(leido.venta&&leido.venta!==t.venta) out.innerHTML=`<div class="alert warn">! El ticket es de la venta ${esc(leido.venta)} y este trabajo es la ${esc(t.venta)}. Revise que sea el ticket correcto.</div>`; else out.innerHTML='';
+    if(leido.anticipo) out.innerHTML+=`<div class="lks" style="grid-template-columns:1fr">${lk('Monto leído del ticket',money(leido.anticipo))}${lk('Forma de pago',leido.forma||'—')}</div>`;
+    else out.innerHTML+=`<div class="alert warn">! No se pudo leer el monto${file.type==='application/pdf'?'':' de una foto'}. Escríbalo tal como aparece; queda pendiente de verificar por Contabilidad.</div>
+      <div class="fields"><div class="f"><label for="pg-monto">Monto del ticket</label><input id="pg-monto" inputmode="decimal" value="${sugerido?Math.round(sugerido):''}"></div>
+      <div class="f"><label for="pg-forma">Forma de pago</label><select id="pg-forma"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div></div>`;
+    box.querySelector('[data-ok]').disabled=false;
+  });
+}
+
+/* ---------- acceso ---------- */
+function vLogin(){
+  return `<div class="login"><div class="brandbig"><div class="logo">COE</div><div><h1>COE Óptica</h1><p class="sub">Centro Ocular Especializado · control y seguimiento de trabajos</p></div></div>
+  <form class="role" id="flogin" autocomplete="on">
+    <div class="f"><label for="lg-u">Usuario</label><input id="lg-u" autocomplete="username" autocapitalize="none" required></div>
+    <div class="f"><label for="lg-p">Contraseña</label><input id="lg-p" type="password" autocomplete="current-password" required></div>
+    <div id="lg-err"></div>
+    <button class="btn primary" type="submit">Entrar</button>
+  </form>
+  <p class="tiny">Cada persona entra con su usuario. Ventas ve su tablero de trabajo; Administración ve el resumen y el control.</p></div>`;
+}
+function vCambio(){
+  return `<div class="login"><div><h1>Cree su contraseña y su PIN</h1><p class="sub">Es su primera entrada. La contraseña es para entrar; el PIN de 4 a 6 dígitos es su firma en los movimientos.</p></div>
+  <form class="role" id="fcambio">
+    <div class="f"><label for="cb-a">Contraseña provisional</label><input id="cb-a" type="password" autocomplete="current-password" required></div>
+    <div class="f"><label for="cb-n">Contraseña nueva (mínimo 8 caracteres)</label><input id="cb-n" type="password" autocomplete="new-password" required></div>
+    <div class="f"><label for="cb-c">Confirme la contraseña nueva</label><input id="cb-c" type="password" autocomplete="new-password" required></div>
+    <div class="f"><label for="cb-p">PIN de firma (4 a 6 dígitos)</label><input id="cb-p" type="password" inputmode="numeric" maxlength="6" autocomplete="off" required></div>
+    <div id="cb-err"></div>
+    <button class="btn primary" type="submit">Guardar y entrar</button>
+  </form></div>`;
+}
+document.getElementById('main').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(e.target.id==='flogin'){
+    const u=document.getElementById('lg-u').value.trim(), p=document.getElementById('lg-p').value; const err=document.getElementById('lg-err');
+    err.innerHTML='<div class="alert info">Entrando…</div>';
+    try{const r=await rpc('opt_login',{p_usuario:u,p_pass:p});TOKEN=r.token;store.set('coeopt-token',TOKEN);await cargar();VIEW=store.get('coeopt-tab')||'';render()}
+    catch(x){err.innerHTML=`<div class="alert bad">✕ ${esc(cleanErr(x))}</div>`}
+  }
+  if(e.target.id==='fcambio'){
+    const g=id=>document.getElementById(id).value; const err=document.getElementById('cb-err');
+    if(g('cb-n')!==g('cb-c')){err.innerHTML='<div class="alert bad">✕ Las contraseñas nuevas no coinciden.</div>';return}
+    try{await rpc('opt_cambiar_acceso',{p_token:TOKEN,p_actual:g('cb-a'),p_nueva:g('cb-n'),p_pin:g('cb-p')});await cargar();toast('Listo. Ya puede trabajar.');render()}
+    catch(x){err.innerHTML=`<div class="alert bad">✕ ${esc(cleanErr(x))}</div>`}
+  }
+});
+
+/* ================= vistas de trabajo diario ================= */
+const lk=(k,v)=>`<div class="lk"><span>${k}</span><b>${esc(v)}</b></div>`;
+function taskHTML(t){const [l,w]=sem(t);const ac=accion(t);return `<div class="task" data-open="${t.id}" role="button" tabindex="0"><span class="av ${l}">${esc(iniciales(t.paciente_nombre))}</span><div style="min-width:0"><div class="t1">${esc(t.paciente_nombre)}</div><div class="t2"><span class="reason ${l}">${esc(w)}</span><span>${esc(t.tipo||'')} · ${esc(t.laboratorio||'')} · venta ${esc(t.venta)}</span></div></div><span class="go">${ico(ACT_ICON[ac]||'chev')}${ac}</span></div>`}
+function lane(cls,titulo,sub,list,empty){return `<section class="lane"><div class="lane-h"><span class="tag ${cls}">${titulo}</span><span class="tiny">${sub}</span><span class="count" style="margin-left:auto">${list.length}</span></div>${list.length?list.map(taskHTML).join(''):`<div class="empty">${empty}</div>`}</section>`}
+const ORD={listo:0,recibido:1,enviado:2,capturado:3,avisado:4,garantia:5};
+
+VISTAS.tablero=function(){
+  const L=vis();
+  const ahora=L.filter(t=>prioridad(t)==='ahora').sort((a,b)=>ORD[a.estado]-ORD[b.estado]);
+  const hoy=L.filter(t=>prioridad(t)==='hoy').sort((a,b)=>ORD[a.estado]-ORD[b.estado]);
+  const ok=L.filter(t=>prioridad(t)==='ok');
+  const pedido=pedidoAngy().length;
+  const posv=posventaLista().filter(p=>!p.hecho).length;
+  const flow=GRUPOS.filter(g=>g[0]!=='entregado').map(([k,lab])=>{const g=L.filter(t=>t.estado===k);const bad=g.some(t=>sem(t)[0]==='bad');return `<button data-filter="${k}" aria-label="${lab}: ${g.length}"><span class="fn">${g.length}</span><span class="fl">${lab}</span>${bad?'<span class="fd d-bad"></span>':''}</button>`}).join('');
+  const fecha=HOY.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+  return `<div class="hello"><div><div class="datel">${fecha.charAt(0).toUpperCase()+fecha.slice(1)}</div><h1>Hola, ${esc(ME.nombre.split(' ')[0])}</h1><p class="sub">${ahora.length?`Tiene <b style="color:var(--bad)">${ahora.length} pendiente${ahora.length>1?'s':''} urgente${ahora.length>1?'s':''}</b>; empiece por arriba.`:'Sin urgencias por ahora.'}</p></div></div>
+  <div class="hero">
+    <button class="bigbtn main" data-go="nuevo"><span class="ic">${ico('plus')}</span><span><b>Nuevo trabajo</b><small>Empieza subiendo el ticket de eOptics</small></span></button>
+    <button class="bigbtn" data-go="pedidos"><span class="ic">${pedido}</span><span><b>Pedido del día</b><small>${pedido===1?'1 trabajo listo':pedido+' trabajos listos'} para la Sra. Angy</small></span></button>
+  </div>
+  <nav class="flow" aria-label="Trabajos por etapa">${flow}</nav>
+  ${lane('bad','Atender ahora','Retrasos o pendientes que frenan una entrega',ahora,'Nada urgente.')}
+  ${lane('warn','Durante el día','Pendientes de hoy',hoy,'Nada más para hoy.')}
+  <div class="calm" data-go="trabajos" role="button" tabindex="0"><span class="lft">${ico('check')}<span><b>${ok.length} trabajos van en tiempo</b> <span class="tiny">· no requieren acción</span></span></span><span class="go">Ver ${ico('chev','sm')}</span></div>
+  <div class="calm" data-go="posventa" role="button" tabindex="0"><span class="lft">${ico('chat')}<span><b>${posv} contactos de posventa</b> <span class="tiny">· seguimiento, mantenimiento y lentes de contacto</span></span></span><span class="go">Abrir ${ico('chev','sm')}</span></div>`;
+};
+
+/* ---------- Trabajos por etapa ---------- */
+let TSTAT='capturado', TQ='';
+VISTAS.trabajos=function(){
+  const q=TQ.toLowerCase();
+  const base=vis().filter(t=>!q||(t.paciente_nombre+' '+t.venta+' '+(t.telefono||'')+' '+(t.id_trabajo||'')).toLowerCase().includes(q));
+  const seg=GRUPOS.map(([k,l])=>{const g=base.filter(t=>t.estado===k);const bad=k!=='entregado'&&g.some(t=>sem(t)[0]==='bad');return `<button aria-pressed="${TSTAT===k}" data-tstat="${k}">${bad?'<span class="pri d-bad" style="width:8px;height:8px"></span>':''}${l}<span class="c">${g.length}</span></button>`}).join('');
+  const o={bad:0,warn:1,ok:2};
+  const L=base.filter(t=>t.estado===TSTAT).sort((a,b)=>o[sem(a)[0]]-o[sem(b)[0]]);
+  return `<h1>Trabajos</h1><p class="sub">Separados por etapa; dentro de cada una, los urgentes primero.</p>
+  <div class="toolbar" style="margin-top:12px"><input id="q" type="search" placeholder="Buscar por nombre, venta o teléfono" value="${esc(TQ)}" aria-label="Buscar"></div>
+  <div class="seg" style="margin-top:12px">${seg}</div>
+  <div class="lane" style="margin-top:12px">${L.length?L.map(taskHTML).join(''):'<div class="empty">No hay trabajos en esta etapa.</div>'}</div>`;
+};
+
+/* ---------- Nuevo trabajo ---------- */
+let NEW=null;
+function resetNew(){NEW={step:1,file:null,leyendo:false,leido:{},f:{venta:'',id_trabajo:'',fecha_venta:iso(HOY),paciente_nombre:'',telefono:'',total:'',anticipo:'',forma:'Efectivo',tipo:'Monofocal',material:'CR39',tratamiento:'AR',arm_desc:'',arm_sku:'',arm_marca:'',arm_propio:false,precio_arm:'',precio_mica:'',costo_mica:'',costo_arm:'',lc_dias:''},paciente_id:'',dip:{od:'',oi:''},alt:{od:'',oi:''},lab:'',gar:false,ref:'',refOk:true}}
+resetNew();
+const TIPOS=['Monofocal','Bifocal','Progresivo','Lente de contacto'];
+const MATS=['CR39','Policarbonato','Alto índice 1.67','Alto índice 1.74','Alta Force','Trivex','Cristal'];
+const TRATS=['Blanca','AR','Fotocromático','Fotocromático AR','Blue Free','Blue-ray','Polarizado','Panoramic Revolution 360','Panoramic Revolution 360 FOTO','Thin & Lite'];
+VISTAS.nuevo=function(){
+  const s=NEW.step;
+  return `<div class="split"><div><h1>Nuevo trabajo</h1><p class="sub">Todo empieza con el ticket de venta de eOptics.</p></div><button class="btn sm" data-go="${ME.rol==='ventas'?'tablero':'resumen'}">Cancelar</button></div>
+  <ol class="stepper">${['Ticket de venta','Paciente y medidas','Laboratorio y firma'].map((x,i)=>`<li class="${i+1<s?'done':i+1===s?'cur':''}"><span>${i+1<s?'✓':i+1}</span>${x}</li>`).join('')}</ol>
+  <div id="wiz" class="form" style="margin-top:14px">${[w1,w2,w3][s-1]()}</div>`;
+};
+function campo(k,lab,attrs=''){const lei=NEW.leido[k]!=null;const v=NEW.f[k];return `<div class="f"><label for="nf-${k}">${lab}${lei?' · <span style="color:var(--ok)">leído del ticket</span>':''}</label><input id="nf-${k}" data-nf="${k}" value="${esc(v)}" ${lei?'readonly class="ro"':''} ${attrs}></div>`}
+function sel(k,lab,opts){return `<div class="f"><label for="nf-${k}">${lab}</label><select id="nf-${k}" data-nf="${k}">${opts.map(o=>`<option ${NEW.f[k]===o?'selected':''}>${o}</option>`).join('')}</select></div>`}
+function w1(){
+  if(!NEW.file) return `<label class="drop" for="tk-new"><span class="ic">${ico('upload')}</span><b>Subir ticket de venta</b><span class="tiny">PDF de eOptics o foto del ticket. Del PDF se leen la venta, el paciente, el total y el anticipo, y esos datos quedan bloqueados.</span><input type="file" id="tk-new" accept="image/*,application/pdf"></label>`;
+  if(NEW.leyendo) return `<div class="card"><div class="alert info">Leyendo ${esc(NEW.file.name)}…</div></div>`;
+  const nl=Object.keys(NEW.leido).length; const f=NEW.f;
+  const tot=num(f.total), ant=num(f.anticipo), pct=tot?ant/tot*100:0, dup=f.venta&&DB.trabajos.some(t=>t.venta===f.venta);
+  const suma=num(f.precio_arm)+num(f.precio_mica);
+  return `<div class="card"><div class="split"><h3>Datos del ticket</h3><span class="pill ${nl?'ok':'warn'}">${nl?nl+' datos leídos del PDF':'Captura manual · por verificar'}</span></div>
+  <div class="tiny">${esc(NEW.file.name)} · <button class="linkbtn" data-tkreset>Cambiar archivo</button></div>
+  ${nl?'':'<div class="alert warn">! No se pudieron leer datos del archivo. Escríbalos tal como aparecen en el ticket; al guardar ya no se pueden cambiar y Contabilidad los verifica contra el archivo.</div>'}
+  ${dup?`<div class="alert bad">✕ La venta ${esc(f.venta)} ya está registrada. Un ticket no se puede usar dos veces.</div>`:''}
+  <div class="fields">${campo('venta','No. de venta *','inputmode="numeric"')}${campo('id_trabajo','ID de trabajo','inputmode="numeric"')}${campo('fecha_venta','Fecha de venta','type="date"')}${campo('telefono','WhatsApp del paciente *','inputmode="tel"')}</div>
+  <div class="fields"><div class="f w2"><label for="nf-paciente_nombre">Paciente *${NEW.leido.paciente_nombre?' · <span style="color:var(--ok)">leído del ticket</span>':''}</label><input id="nf-paciente_nombre" data-nf="paciente_nombre" value="${esc(f.paciente_nombre)}" ${NEW.leido.paciente_nombre?'readonly class="ro"':''}></div>${campo('total','Total de la venta *','inputmode="decimal"')}${campo('anticipo','Anticipo pagado *','inputmode="decimal"')}</div>
+  <div class="fields">${NEW.leido.forma?campo('forma','Forma de pago'):sel('forma','Forma de pago',['Efectivo','Tarjeta','Transferencia'])}</div>
+  </div>
+  <div class="card"><h3>Productos de la venta</h3>
+  <div class="fields">${sel('tipo','Tipo',TIPOS)}${sel('material','Material',MATS)}<div class="f w2"><label for="nf-tratamiento">Tratamiento</label><select id="nf-tratamiento" data-nf="tratamiento">${TRATS.map(o=>`<option ${f.tratamiento===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
+  <div class="fields"><div class="f w2"><label for="nf-arm_desc">Armazón (marca, modelo, color, medidas)</label><input id="nf-arm_desc" data-nf="arm_desc" value="${esc(f.arm_desc)}" placeholder="Marcolin MA5021 carey 53□17" ${f.arm_propio?'disabled':''}></div>${campo('arm_sku','Código del armazón')}<div class="f"><label class="switch" style="margin-top:22px"><input type="checkbox" id="nf-arm_propio" ${f.arm_propio?'checked':''}> Armazón del paciente</label></div></div>
+  <div class="fields">${campo('precio_arm','Precio armazón','inputmode="decimal"')}${campo('precio_mica',f.tipo==='Lente de contacto'?'Precio lentes de contacto':'Precio micas','inputmode="decimal"')}${campo('costo_mica','Costo laboratorio (opcional)','inputmode="decimal"')}${f.tipo==='Lente de contacto'?campo('lc_dias','Duración del paquete (días)','inputmode="numeric"'):campo('costo_arm','Costo armazón (opcional)','inputmode="decimal"')}</div>
+  <div id="w1-chk" class="form"></div>
+  </div>
+  <div class="actions"><button class="btn primary" id="w1-next" data-wiz="2">Continuar</button></div>`;
+}
+function w1Check(){
+  const f=NEW.f, box=document.getElementById('w1-chk'); if(!box) return true;
+  const errs=[],warns=[];
+  if(!/^\d{3,}$/.test(f.venta)) errs.push('Falta el número de venta de eOptics.');
+  else if(DB.trabajos.some(t=>t.venta===f.venta)) errs.push('Esa venta ya está registrada.');
+  if(!f.paciente_nombre.trim()) errs.push('Falta el nombre del paciente.');
+  if(!/^\d{10}$/.test(String(f.telefono).replace(/\D/g,''))) errs.push('El WhatsApp debe tener 10 dígitos.');
+  const tot=num(f.total), ant=num(f.anticipo);
+  if(tot<=0) errs.push('Falta el total de la venta.');
+  if(ant<=0) errs.push('Falta el anticipo pagado.');
+  if(ant>tot) errs.push('El anticipo no puede ser mayor al total.');
+  const suma=num(f.precio_arm)+num(f.precio_mica);
+  if(tot>0&&suma>0&&Math.abs(suma-tot)>1) warns.push(`Armazón + micas suman ${money(suma)} y el total es ${money(tot)}. Revise los importes (descuento de consulta u otros productos).`);
+  if(tot>0&&ant>0&&ant/tot*100<CFG.anticipo) warns.push(`Anticipo de ${Math.round(ant/tot*100)}%: se guarda, pero no entra al pedido hasta completar el ${CFG.anticipo}%.`);
+  const pm=num(f.precio_mica), cm=num(f.costo_mica); if(cm&&pm/cm<CFG.factor.mica) warns.push(`Margen de micas ×${(pm/cm).toFixed(2)}, debajo del factor ${CFG.factor.mica}.`);
+  box.innerHTML=errs.map(e=>`<div class="alert bad">✕ ${esc(e)}</div>`).join('')+warns.map(w=>`<div class="alert warn">! ${esc(w)}</div>`).join('');
+  const b=document.getElementById('w1-next'); if(b) b.disabled=!!errs.length;
+  return !errs.length;
+}
+function pacienteDe(nombre){const n=String(nombre||'').trim().toLowerCase();return DB.pacientes.find(p=>p.nombre.trim().toLowerCase()===n)}
+function w2(){
+  const f=NEW.f;
+  let p=NEW.paciente_id?DB.pacientes.find(x=>x.id===NEW.paciente_id):pacienteDe(f.paciente_nombre);
+  if(p) NEW.paciente_id=p.id;
+  if(!p){
+    const parecidos=DB.pacientes.filter(x=>x.nombre.toLowerCase().includes(f.paciente_nombre.split(' ')[0].toLowerCase())).slice(0,6);
+    return `<div class="card"><div class="alert warn">! ${esc(f.paciente_nombre)} no tiene expediente refractivo. Capture su graduación, agudeza y capacidad visual.</div>
+    ${parecidos.length?`<p class="tiny">¿Es alguno de estos pacientes?</p><div class="chips">${parecidos.map(x=>`<button class="chip" data-pickpac="${x.id}">${esc(x.nombre)} · ${x.expediente}</button>`).join('')}</div>`:''}
+    <div class="actions"><button class="btn primary" data-goexpnew>Crear expediente</button><button class="btn" data-wiz="1">Atrás</button></div></div>`;
+  }
+  const ex=p.examenes[0];
+  if(!ex) return `<div class="card"><div class="alert warn">! ${esc(p.nombre)} tiene expediente pero sin graduación.</div><div class="actions"><button class="btn primary" data-expadd="${p.id}">Capturar graduación</button><button class="btn" data-wiz="1">Atrás</button></div></div>`;
+  const lc=f.tipo==='Lente de contacto', need=f.tipo==='Bifocal'||f.tipo==='Progresivo';
+  const vencida=diff(ex.fecha,HOY)>CFG.revision*30.5;
+  return `${vencida?`<div class="alert warn">! La graduación es del ${fmtY(ex.fecha)}: tiene más de ${CFG.revision} meses. Se recomienda graduar de nuevo.</div>`:''}${expResumen(p,ex,true)}
+  ${lc?'':`<div class="card"><h3>Medidas de montaje</h3><p class="tiny">Se toman en mostrador con el armazón elegido.${need?` En ${f.tipo.toLowerCase()} la altura es obligatoria.`:''}</p>
+  <div class="rxgrid" style="grid-template-columns:40px repeat(2,minmax(0,1fr));max-width:420px"><span></span><span class="h">DIP (mm)</span><span class="h">Altura (mm)</span>
+  ${['od','oi'].map(e=>`<span class="eye">${e.toUpperCase()}</span><input id="m-dip-${e}" value="${esc(NEW.dip[e])}" inputmode="decimal" aria-label="DIP ${e}"><input id="m-alt-${e}" value="${esc(NEW.alt[e])}" inputmode="decimal" aria-label="Altura ${e}">`).join('')}</div>
+  <div id="m-hint" class="tiny"></div></div>`}
+  <div class="actions"><button class="btn primary" id="wiz-next" data-wiz="3">Continuar</button><button class="btn" data-wiz="1">Atrás</button></div>`;
+}
+function w3(){
+  const f=NEW.f; const sug=/Policarbonato|1\.67|1\.74|FOTO|Fotocrom|Trivex/i.test(f.material+' '+f.tratamiento)||f.tipo==='Lente de contacto'?'Health Vision':'Sra. Angy'; if(!NEW.lab) NEW.lab=sug;
+  return `<div class="card"><h3>Laboratorio</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" aria-pressed="${NEW.lab===l.nombre}" data-lab="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}</div><p class="tiny">Sugerido por el material: ${sug}.</p></div>
+  ${CFG.ref&&CFG.ref.activo?`<div class="card"><h3>Código de referido</h3><div class="f" style="max-width:320px"><input id="w-ref" placeholder="COE-4001 (opcional)" value="${esc(NEW.ref)}" aria-label="Código de referido"><span class="hint" id="w-refh"></span></div></div>`:''}
+  <div class="card"><h3>Políticas de garantía</h3><p class="tiny">Léalas al paciente; firma de conformidad en la hoja impresa o en pantalla.</p><label class="switch"><input type="checkbox" id="w-gar" ${NEW.gar?'checked':''}> El paciente firmó las políticas de garantía</label></div>
+  <div class="card"><h3>Resumen</h3><div class="lks">${lk('Venta',f.venta)}${lk('Paciente',f.paciente_nombre)}${lk('Trabajo',`${f.tipo} · ${f.material} · ${f.tratamiento}`)}${lk('Total',money(f.total))}${lk('Anticipo',money(f.anticipo))}${lk('Saldo',money(num(f.total)-num(f.anticipo)))}</div></div>
+  <div class="actions"><button class="btn primary" id="wiz-save" data-wsave>Guardar trabajo</button><button class="btn" data-wiz="2">Atrás</button></div>`;
+}
+function wizCheck(){
+  if(!document.getElementById('wiz')) return;
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
+  if(NEW.step===1){document.querySelectorAll('[data-nf]').forEach(el=>{NEW.f[el.dataset.nf]=el.value.trim()});const pr=document.getElementById('nf-arm_propio');if(pr)NEW.f.arm_propio=pr.checked;w1Check()}
+  if(NEW.step===2&&document.getElementById('wiz-next')){
+    const hint=document.getElementById('m-hint');
+    if(hint){['od','oi'].forEach(e=>{NEW.dip[e]=val('m-dip-'+e);NEW.alt[e]=val('m-alt-'+e)});
+      const need=NEW.f.tipo==='Bifocal'||NEW.f.tipo==='Progresivo'; const falta=[];
+      ['od','oi'].forEach(e=>{if(!NEW.dip[e])falta.push('DIP '+e.toUpperCase());if(need&&!NEW.alt[e])falta.push('altura '+e.toUpperCase())});
+      document.getElementById('wiz-next').disabled=!!falta.length; hint.textContent=falta.length?'Falta: '+falta.join(', ')+'.':'Medidas completas.';}
+  }
+  if(NEW.step===3&&document.getElementById('w-gar')){
+    NEW.gar=document.getElementById('w-gar').checked; NEW.ref=val('w-ref').toUpperCase(); NEW.refOk=true;
+    const h=document.getElementById('w-refh');
+    if(h){ if(NEW.ref){const r=DB.referidos.find(x=>x.codigo===NEW.ref);
+        if(!r){h.textContent='Código no encontrado.';NEW.refOk=false}
+        else if(r.paciente_nombre.toLowerCase()===NEW.f.paciente_nombre.toLowerCase()||(r.telefono&&r.telefono.replace(/\D/g,'')===NEW.f.telefono.replace(/\D/g,''))){h.textContent='No puede usar su propio código.';NEW.refOk=false}
+        else if(num(NEW.f.total)<CFG.ref.minCompra){h.textContent=`Aplica en compras desde ${money(CFG.ref.minCompra)}.`;NEW.refOk=false}
+        else h.textContent=`Recomendado por ${r.paciente_nombre} · ${refBenef()}`;
+      } else h.textContent='';}
+    document.getElementById('wiz-save').disabled=!(NEW.gar&&NEW.refOk);
+  }
+}
+async function wizSave(){
+  const f=NEW.f, p=DB.pacientes.find(x=>x.id===NEW.paciente_id), ex=p&&p.examenes[0];
+  const btn=document.getElementById('wiz-save'); btn.disabled=true; btn.textContent='Subiendo ticket…';
+  let path; try{path=await subirArchivo(NEW.file)}catch(e){btn.disabled=false;btn.textContent='Guardar trabajo';toast('No se pudo subir el ticket: '+cleanErr(e),true);return}
+  const rxE=e=>{const r=(ex&&ex.rx&&ex.rx[e])||[];return [r[0]||'',r[1]||'',r[2]||'',r[3]||'',NEW.dip[e],NEW.alt[e]]};
+  const r=await act('trabajo_crear',{venta:f.venta,id_trabajo:f.id_trabajo,paciente_id:NEW.paciente_id,paciente_nombre:f.paciente_nombre,telefono:f.telefono.replace(/\D/g,''),
+    sede:ME.sede,fecha_venta:f.fecha_venta||iso(HOY),laboratorio:NEW.lab,tipo:f.tipo,material:f.material,tratamiento:f.tratamiento,
+    rx:{od:rxE('od'),oi:rxE('oi')},armazon:f.arm_propio?{propio:true,desc:'Armazón del paciente'}:{desc:f.arm_desc,sku:f.arm_sku,marca:(f.arm_desc.split(' ')[0]||''),propio:false,lc_dias:num(f.lc_dias)||null},
+    precio:{armazon:num(f.precio_arm),mica:num(f.precio_mica)},costo:{armazon:num(f.costo_arm),mica:num(f.costo_mica)},total:num(f.total),
+    respaldo:!!ex,referido:NEW.refOk?NEW.ref:'',garantia_firmada:NEW.gar,ticket_leido:NEW.leido,
+    pago:{monto:num(f.anticipo),forma:f.forma||'Efectivo',archivo:path,leido:NEW.leido.anticipo!=null}});
+  if(r){toast('Trabajo guardado');resetNew();VIEW=ME.rol==='ventas'?'tablero':'trabajos';render();window.scrollTo(0,0)}
+  else{const b=document.getElementById('wiz-save');if(b){b.disabled=false;b.textContent='Guardar trabajo'}}
+}
+
+/* ---------- Expediente refractivo ---------- */
+const DXS=['Miopía','Miopía alta','Hipermetropía','Astigmatismo miópico','Astigmatismo hipermetrópico','Astigmatismo mixto','Presbicia','Anisometropía','Ambliopía','Estrabismo','Ojo seco','Pterigión','Queratocono','Catarata incipiente','Pseudofaquia','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular'];
+const DX_REF=['Catarata','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular','Queratocono','Pterigión'];
+const EX={q:'',sel:null,form:false,nuevo:false,prefill:{},regresar:false,dx:[]};
+function referir(ex){
+  const d=(ex.dx||[]).filter(x=>DX_REF.some(r=>x.startsWith(r)));
+  if(d.length) return 'Diagnóstico de '+d.join(', ').toLowerCase();
+  const bad=['od','oi'].filter(e=>{const m=/20\/(\d+)/.exec((ex.av&&ex.av[e]&&ex.av[e].ccl)||'');return m&&+m[1]>40});
+  return bad.length?`Capacidad visual menor a 20/40 en ${bad.map(x=>x.toUpperCase()).join(' y ')}`:'';
+}
+const g4=(ex,e)=>((ex.rx&&ex.rx[e])||[]);
+function rxTable(ex){return `<div class="tbl-wrap"><table><thead><tr><th></th><th>Esfera</th><th>Cilindro</th><th>Eje</th><th>Adición</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td>${[0,1,2,3].map(i=>`<td class="rx">${esc(g4(ex,e)[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+function avTable(ex){const a=e=>(ex.av&&ex.av[e])||{};return `<div class="tbl-wrap"><table><thead><tr><th></th><th colspan="2">Agudeza visual · sin corrección</th><th colspan="2">Capacidad visual · mejor corregida</th></tr><tr><th></th><th>Lejos</th><th>Cerca</th><th>Lejos</th><th>Cerca</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td><td class="rx">${esc(a(e).scl||'—')}</td><td class="rx">${esc(a(e).scc||'—')}</td><td class="rx">${esc(a(e).ccl||'—')}</td><td class="rx">${esc(a(e).ccc||'—')}</td></tr>`).join('')}</tbody></table></div>`}
+function expResumen(p,ex,wizard){
+  const ref=referir(ex);
+  return `<div class="card"><div class="split"><div style="min-width:0"><h3>${esc(p.nombre)}</h3><div class="tiny">${edad(p.nacimiento)} años · ${esc(p.expediente)} · graduó ${esc(ex.optometrista||'—')} el ${fmtY(ex.fecha)}</div></div>${wizard?'<span class="pill mute">Del expediente · no editable</span>':''}${ex.archivo?`<button class="btn sm" data-ver="${esc(ex.archivo)}">${ico('file','sm')}Respaldo</button>`:''}</div>
+  <div class="chips">${(ex.dx||[]).map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>
+  ${ref?`<div class="alert warn">! ${esc(ref)}. Ofrezca consulta con oftalmología.</div>`:''}
+  ${rxTable(ex)}${avTable(ex)}</div>`;
+}
+VISTAS.expediente=function(){
+  if(EX.nuevo) return vExpForm(null);
+  if(EX.sel){const p=DB.pacientes.find(x=>x.id===EX.sel); if(p) return EX.form?vExpForm(p):vExpDetalle(p); EX.sel=null}
+  const q=EX.q.toLowerCase(); const L=DB.pacientes.filter(p=>!q||(p.nombre+' '+p.expediente+' '+(p.telefono||'')).toLowerCase().includes(q));
+  return `<div class="split"><div><h1>Expediente refractivo</h1><p class="sub">Graduación, agudeza visual, capacidad visual, edad y diagnósticos de cada paciente.</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expnew>+ Nuevo paciente</button>':''}</div>
+  <div class="toolbar" style="margin-top:12px"><input id="exq" type="search" placeholder="Buscar paciente, expediente o teléfono" value="${esc(EX.q)}" aria-label="Buscar paciente"></div>
+  <div class="lane" style="margin-top:12px">${L.slice(0,200).map(p=>{const ex=p.examenes[0];const ref=ex?referir(ex):'';return `<div class="task" data-exp="${p.id}" role="button" tabindex="0"><span class="av ${ref?'warn':'ok'}">${esc(iniciales(p.nombre))}</span><div style="min-width:0"><div class="t1">${esc(p.nombre)}</div><div class="t2"><span>${edad(p.nacimiento)} años · ${esc(p.expediente)} · ${ex?'última graduación '+fmtY(ex.fecha):'sin graduación'}</span></div><div class="chips" style="margin-top:6px">${ex?(ex.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join(''):''}${ref?'<span class="pill warn">Referir a oftalmología</span>':''}</div></div><span class="go">Abrir ${ico('chev','sm')}</span></div>`}).join('')||`<div class="empty">${DB.pacientes.length?'Sin resultados.':'Aún no hay pacientes. Se crean al capturar la primera graduación.'}</div>`}</div>`;
+};
+function vExpDetalle(p){
+  const [ex,...prev]=p.examenes; const trab=DB.trabajos.filter(t=>t.paciente_id===p.id||t.paciente_nombre===p.nombre);
+  let cambio='';
+  if(ex&&prev.length){const d=['od','oi'].map(e=>Math.abs(num(g4(ex,e)[0])-num(g4(prev[0],e)[0]))); if(Math.max(...d)>=0.75) cambio=`<div class="alert warn">! Cambio de esfera de ${Math.max(...d).toFixed(2)} D contra la graduación anterior. Confirme antes de pedir micas.</div>`;}
+  return `<button class="btn sm" data-expback>‹ Expedientes</button>
+  <div class="split" style="margin-top:12px"><div><h1>${esc(p.nombre)}</h1><p class="sub">${edad(p.nacimiento)} años · nació el ${fmtY(p.nacimiento)} · ${esc(p.expediente)} · ${esc(fmtTel(p.telefono))}</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expform>+ Nueva graduación</button>':''}</div>
+  <div class="section">${cambio}${ex?expResumen(p,ex,false):'<div class="empty">Sin graduación capturada.</div>'}</div>
+  ${prev.length?`<div class="section"><h2>Graduaciones anteriores</h2>${prev.map(x=>`<div class="card"><div class="split"><b>${fmtY(x.fecha)}</b><span class="tiny">${esc(x.optometrista||'')}</span></div>${rxTable(x)}<div class="chips">${(x.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div>`).join('')}</div>`:''}
+  <div class="section"><h2>Trabajos de óptica</h2>${trab.length?`<div class="lane" style="margin-top:0">${trab.map(taskHTML).join('')}</div>`:'<div class="empty">Sin trabajos registrados.</div>'}</div>`;
+}
+function vExpForm(p){
+  const grid=(heads,keys)=>`<div class="rxgrid" style="grid-template-columns:40px repeat(4,minmax(0,1fr))"><span></span>${heads.map(h=>`<span class="h">${h}</span>`).join('')}${['od','oi'].map(e=>`<span class="eye">${e.toUpperCase()}</span>${keys.map(([c,ph])=>`<input id="x-${e}-${c}" placeholder="${ph}" aria-label="${e} ${c}" ${c==='eje'?'inputmode="numeric"':''}>`).join('')}`).join('')}</div>`;
+  const pf=EX.prefill||{};
+  return `<button class="btn sm" data-expback>‹ ${p?'Volver al expediente':(EX.regresar?'Volver al trabajo':'Expedientes')}</button>
+  <h1 style="margin-top:12px">${p?'Nueva graduación':'Nuevo paciente'}</h1>${p?`<p class="sub">${esc(p.nombre)} · ${edad(p.nacimiento)} años</p>`:''}
+  <div class="form" style="margin-top:12px">
+  ${p?'':`<div class="card"><h3>Paciente</h3><div class="fields"><div class="f w2"><label for="x-nom">Nombre completo *</label><input id="x-nom" value="${esc(pf.nombre||'')}"></div><div class="f"><label for="x-nac">Fecha de nacimiento *</label><input id="x-nac" type="date"></div><div class="f"><label for="x-tel">WhatsApp *</label><input id="x-tel" inputmode="tel" placeholder="10 dígitos" value="${esc(pf.telefono||'')}"></div></div></div>`}
+  <div class="card"><h3>Agudeza visual y capacidad visual</h3>${grid(['AV lejos','AV cerca','CV lejos','CV cerca'],[['scl','20/'],['scc','J'],['ccl','20/'],['ccc','J']])}
+  <p class="tiny">AV: sin corrección. CV: capacidad visual con la mejor corrección. Lejos en Snellen (20/20), cerca en Jaeger (J1).</p></div>
+  <div class="card"><h3>Refracción final</h3>${grid(['Esfera','Cilindro','Eje','Adición'],[['esf',''],['cil',''],['eje',''],['add','']])}</div>
+  <div class="card"><h3>Diagnósticos oftalmológicos</h3><div class="chips">${DXS.map(d=>`<button class="chip" type="button" aria-pressed="${EX.dx.includes(d)}" data-dx="${d}">${d}</button>`).join('')}</div><p class="tiny">Catarata, glaucoma, retinopatía, queratocono, pterigión o capacidad visual menor a 20/40 marcan al paciente para consulta con oftalmología.</p></div>
+  <div class="card"><h3>Respaldo</h3><div class="fields"><div class="f w2"><label for="x-opt">Graduó</label><input id="x-opt" list="x-opts" value="Optometría COE"><datalist id="x-opts"><option>Optometría COE</option><option>Dra. Rivera Bustos</option><option>Dr. Villegas</option></datalist></div><div class="f w2"><label for="x-file">Receta o captura de eOptics (foto o PDF)</label><input id="x-file" type="file" accept="image/*,application/pdf"></div><div class="f w4"><label for="x-notas">Notas</label><input id="x-notas"></div></div></div>
+  <div id="x-err" class="form"></div>
+  <div class="actions"><button class="btn primary" data-expsave>Guardar en expediente</button></div></div>`;
+}
+async function expSave(btn){
+  const v=id=>{const el=document.getElementById(id);return el?el.value.trim():''}; const errs=[];
+  const p=EX.sel&&!EX.nuevo?DB.pacientes.find(x=>x.id===EX.sel):null;
+  if(!p){if(!v('x-nom'))errs.push('Escriba el nombre del paciente.');if(!v('x-nac'))errs.push('Capture la fecha de nacimiento; con ella se calcula la edad.');if(!/^\d{10}$/.test(v('x-tel').replace(/\D/g,'')))errs.push('El WhatsApp debe tener 10 dígitos.')}
+  ['od','oi'].forEach(e=>{const E=e.toUpperCase(),ej=v(`x-${e}-eje`);
+    if(!v(`x-${e}-scl`))errs.push(`Falta agudeza visual de lejos ${E}.`);
+    if(!v(`x-${e}-ccl`))errs.push(`Falta capacidad visual de lejos ${E}.`);
+    if(v(`x-${e}-cil`)&&!ej)errs.push(`Hay cilindro en ${E} sin eje.`);
+    if(ej&&(isNaN(+ej)||+ej<0||+ej>180))errs.push(`Eje ${E} fuera de rango (0 a 180).`)});
+  if(!EX.dx.length)errs.push('Marque al menos un diagnóstico.');
+  const box=document.getElementById('x-err');
+  if(errs.length){box.innerHTML=errs.map(x=>`<div class="alert bad">✕ ${esc(x)}</div>`).join('');box.scrollIntoView({block:'center'});return}
+  btn.disabled=true; btn.textContent='Guardando…';
+  let archivo=null; const fl=document.getElementById('x-file').files[0];
+  if(fl){try{archivo=await subirArchivo(fl)}catch(e){toast('No se pudo subir el respaldo: '+cleanErr(e),true);btn.disabled=false;btn.textContent='Guardar en expediente';return}}
+  const examen={optometrista:v('x-opt'),av:{},rx:{},dx:[...EX.dx],notas:v('x-notas'),archivo};
+  ['od','oi'].forEach(e=>{examen.av[e]={scl:v(`x-${e}-scl`),scc:v(`x-${e}-scc`),ccl:v(`x-${e}-ccl`),ccc:v(`x-${e}-ccc`)};examen.rx[e]=['esf','cil','eje','add'].map(c=>{let x=v(`x-${e}-${c}`);if(c==='eje'&&x)x=String(+x).padStart(3,'0');return x})});
+  let r;
+  if(p) r=await act('examen_crear',{paciente_id:p.id,examen});
+  else{const [y,m,d]=v('x-nac').split('-').map(Number);r=await act('paciente_crear',{nombre:v('x-nom'),nacimiento:v('x-nac'),telefono:v('x-tel').replace(/\D/g,''),sede:ME.sede,examen})}
+  if(!r){btn.disabled=false;btn.textContent='Guardar en expediente';return}
+  const pid=p?p.id:r.id; EX.dx=[]; EX.form=false; EX.nuevo=false; EX.sel=pid; toast('Guardado en el expediente');
+  if(EX.regresar){EX.regresar=false;NEW.paciente_id=pid;VIEW='nuevo';NEW.step=2}
+  render(); window.scrollTo(0,0);
+}
+
+/* ---------- Pedidos a laboratorio ---------- */
+const pedidoAngy=()=>vis().filter(t=>t.estado==='capturado'&&t.laboratorio==='Sra. Angy'&&pctPag(t)>=CFG.anticipo);
+const fechaAngy=()=>HOY.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
+const tipoAngy=t=>({Monofocal:'MONOFOCAL',Bifocal:'BIFOCAL',Progresivo:'PROGRESIVAS'})[t.tipo]||String(t.tipo||'').toUpperCase();
+const tratAngy=t=>(/Panoramic|Alta Force|Blue Free|Thin/.test(t.tratamiento||'')?t.tratamiento:`${t.material||''} ${t.tratamiento||''}`).toUpperCase();
+function rxAngy(a){a=a||[];let s=a[0]||'0.00';if(a[1]) s+=` ${a[1]} X ${+a[2]||0}`;return s}
+function tablaAngy(L){
+  return `<div class="paper"><table><thead><tr><th colspan="5" class="ttl">PEDIDO ${fechaAngy()}</th></tr>
+  <tr class="cols"><th>NOMBRE DEL<br>PACIENTE</th><th>TIPO DE MICA</th><th>TRATAMIENTO</th><th>GRADUACIÓN</th><th>ADICIÓN</th></tr></thead><tbody>
+  ${L.map(t=>`<tr><td>${esc(t.paciente_nombre.toUpperCase())}</td><td>${esc(tipoAngy(t))}</td><td>${esc(tratAngy(t))}</td><td class="g"><div>OD ${esc(rxAngy(t.rx.od))}</div><div>OS ${esc(rxAngy(t.rx.oi))}</div></td><td class="g"><div>${esc((t.rx.od||[])[3]||'')}&nbsp;</div><div>${esc((t.rx.oi||[])[3]||'')}&nbsp;</div></td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:#555">No hay trabajos listos para este pedido.</td></tr>'}
+  </tbody></table></div>`;
+}
+function ordenHV(t){
+  const c=(k,v)=>`<div class="cell"><span>${k}</span>${esc(v||'—')}</div>`; const ok=pctPag(t)>=CFG.anticipo;
+  return `<div class="order"><div class="ohead"><b>Orden HV · ${esc(t.paciente_nombre)}</b><span class="rx">Venta ${esc(t.venta)}</span></div><div class="hv">
+  <div class="hvgrid">${c('Nombre de facturación','Centro Ocular Especializado')}${c('Paciente',t.paciente_nombre)}${c('Fecha',fmt(HOY))}</div>
+  <div style="overflow-x:auto"><table><thead><tr><th></th><th>Esf</th><th>Cil</th><th>Eje</th><th>Add</th><th>Alt</th><th>DNP</th></tr></thead><tbody>
+  ${['od','oi'].map(e=>`<tr><td><b>${e==='od'?'D':'I'}</b></td>${[0,1,2,3,5,4].map(i=>`<td class="rx">${esc((t.rx[e]||[])[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <div class="hvgrid">${c('Diseño',t.tipo)}${c('Material',t.material)}${c('Tratamiento',t.tratamiento)}${c('Armazón',t.armazon.desc)}${c('Código',t.armazon.sku)}${c('Servicios',t.armazon.propio?'Bisel en armazón del paciente':'Bisel')}</div>
+  ${ok?'':`<div class="alert bad">✕ Anticipo de ${Math.round(pctPag(t))}%: no se puede enviar.</div>`}
+  <div class="actions"><button class="btn primary sm" data-hvsend="${t.id}" ${ok?'':'disabled'}>Marcar orden enviada</button><button class="btn sm" data-open="${t.id}">Ver trabajo</button><button class="btn sm" data-printhv="${t.id}">${ico('print','sm')}Imprimir</button></div>
+  </div></div>`;
+}
+VISTAS.pedidos=function(){
+  const cap=vis().filter(t=>t.estado==='capturado');
+  const angy=cap.filter(t=>t.laboratorio==='Sra. Angy'), ok=pedidoAngy(), no=angy.filter(t=>pctPag(t)<CFG.anticipo);
+  const otros=cap.filter(t=>t.laboratorio!=='Sra. Angy');
+  const L=(CFG.labs||[]).find(l=>l.nombre==='Sra. Angy');
+  return `<h1>Pedidos a laboratorio</h1><p class="sub">El pedido se arma solo con los trabajos que tienen el anticipo mínimo del ${CFG.anticipo}%.</p>
+  <div class="section"><div class="split"><h2>Sra. Angy · pedido del día</h2><span class="pill mute">Recolección: ${fmt(llegadaLab('Sra. Angy'))}</span></div>
+  <div id="print-angy">${tablaAngy(ok)}</div>
+  ${no.map(t=>`<div class="alert bad">✕ ${esc(t.paciente_nombre)} (venta ${esc(t.venta)}) no entra: lleva ${Math.round(pctPag(t))}% de anticipo.</div>`).join('')}
+  <div class="actions"><button class="btn wa" data-angycopy ${ok.length?'':'disabled'}>Copiar pedido para WhatsApp</button><button class="btn" data-printangy ${ok.length?'':'disabled'}>${ico('print','sm')}Imprimir</button><button class="btn primary" data-angysend ${ok.length?'':'disabled'}>Marcar ${ok.length} como enviado${ok.length===1?'':'s'}</button></div></div>
+  <div class="section"><h2>Health Vision y otros laboratorios</h2>${otros.length?otros.map(ordenHV).join(''):'<div class="empty">Sin órdenes pendientes.</div>'}</div>`;
+};
+
+/* ---------- Posventa ---------- */
+const MOTIVOS={seg:'Seguimiento a 7 días',mant:'Mantenimiento',renov:'Renovación sugerida',anual:'Revisión anual de la vista',lc:'Reposición de lentes de contacto',adapt:'Control de adaptación',recoger:'Lentes sin recoger'};
+function posventaLista(){
+  if(!DB) return [];
+  const out=[]; const R=DB.posventa||{};
+  const add=(o)=>{const r=R[o.clave];o.res=r?r.resultado:'Sin contactar';o.hecho=!!r&&r.resultado!=='Sin contactar';out.push(o)};
+  DB.trabajos.forEach(t=>{
+    const lc=/contacto/i.test(t.tipo||''); const prod=lc?'lc':'armazon';
+    if(t.estado==='entregado'){
+      const fe=ev(t,'entregado'); if(!fe) return; const d=diff(fe,HOY);
+      if(!lc&&d>=7&&d<=21) add({clave:'seg:'+t.id,key:'seg',prod,pac:t.paciente_nombre,tel:t.telefono,det:`${t.tipo} entregado el ${fmt(fe)}. Preguntar cómo se adapta.`});
+      if(lc&&d>=25&&d<=45) add({clave:'adapt:'+t.id,key:'adapt',prod,pac:t.paciente_nombre,tel:t.telefono,det:`Lentes de contacto entregados el ${fmt(fe)}. Control al mes de uso.`});
+      if(lc&&+t.armazon.lc_dias){const fin=addDays(fe,+t.armazon.lc_dias);const k=diff(HOY,fin);if(k<=3&&k>=-20) add({clave:'lc:'+t.id,key:'lc',prod,pac:t.paciente_nombre,tel:t.telefono,det:`Se le acaban alrededor del ${fmt(fin)}.`})}
+      if(!lc){const meses=(HOY.getFullYear()-fe.getFullYear())*12+HOY.getMonth()-fe.getMonth();const M=+CFG.mantenimiento||6;const k=Math.floor(meses/M);
+        if(k>=1){const due=addMonths(fe,k*M);const dd=diff(due,HOY);if(dd>=0&&dd<=30) add({clave:`mant:${t.id}:${k}`,key:'mant',prod,pac:t.paciente_nombre,tel:t.telefono,det:`Lentes entregados el ${fmtY(fe)}. Le toca su mantenimiento.`})}
+        if(meses>=(+CFG.renovacion||24)&&meses<=(+CFG.renovacion||24)+2) add({clave:'renov:'+t.id,key:'renov',prod,pac:t.paciente_nombre,tel:t.telefono,det:`Sus lentes tienen ${meses} meses.`});}
+    }
+    if(t.estado==='avisado'){const d=diff(ev(t,'avisado'),HOY);if(d>=7) add({clave:`recoger:${t.id}:${Math.floor(d/7)}`,key:'recoger',prod,pac:t.paciente_nombre,tel:t.telefono,det:`Avisado hace ${d} días${saldo(t)?' · saldo '+money(saldo(t)):''}.`,trabajo:t.id})}
+  });
+  DB.pacientes.forEach(p=>{const ex=p.examenes[0];if(!ex) return;const vence=addMonths(ex.fecha,+CFG.revision||12);const d=diff(vence,HOY);if(d>=0&&d<=45) add({clave:`anual:${p.id}:${ex.id}`,key:'anual',prod:'armazon',pac:p.nombre,tel:p.telefono,det:`Última graduación: ${fmtY(ex.fecha)}.`})});
+  return out;
+}
+function msgPosv(p){
+  const n=String(p.pac).split(' ')[0];
+  const alarma='Acuda a consulta de inmediato si nota: baja súbita de visión, dolor de ojo, ojo rojo con lagaña, destellos o una sombra en la vista.';
+  const alarmaLC='Si tiene dolor, ojo rojo o molestia a la luz, retire el lente y venga a consulta de inmediato.';
+  const m={
+    seg:`Hola ${n}, le saluda la óptica del Centro Ocular Especializado. ¿Cómo se ha sentido con sus lentes nuevos? Si siente mareo o ve borroso, venga y se los ajustamos sin costo.\n\n${alarma}\n${clinic()}`,
+    mant:`Hola ${n}, ya le toca el mantenimiento gratuito de sus lentes: limpieza profunda, cambio de plaquetas, ajuste de tornillos y del armazón.${CFG.videoMant?`\nVea lo que incluye: ${CFG.videoMant}`:''}\n\nPase cuando guste; toma unos 15 minutos.\n${clinic()}`,
+    renov:`Hola ${n}, sus lentes ya tienen buen tiempo de uso. Le invitamos a revisar su vista y el estado de sus micas; si conserva su armazón, solo se cambian las micas.\n${clinic()}`,
+    anual:`Hola ${n}, ya pasó un año de su última revisión de la vista. Le recomendamos revisarse para confirmar que su graduación sigue siendo la correcta. ¿Le agendamos una cita?\n${clinic()}`,
+    lc:`Hola ${n}, sus lentes de contacto están por terminarse. ¿Le apartamos sus cajas y su solución? No duerma con sus lentes salvo indicación del médico.\n\n${alarmaLC}\n${clinic()}`,
+    adapt:`Hola ${n}, ya cumplió un mes con sus lentes de contacto. Le invitamos a su control de adaptación sin costo. ¿Qué día le acomoda?\n\n${alarmaLC}\n${clinic()}`,
+    recoger:`Hola ${n}, le recordamos que sus lentes le esperan en el Centro Ocular Especializado. Le guardamos su trabajo hasta 6 meses según nuestra política de garantía.\n${clinic()}`,
+  };return m[p.key];
+}
+let PTAB='armazon';
+VISTAS.posventa=function(){
+  const all=posventaLista(); const L=all.filter(p=>p.prod===PTAB); const keys=[...new Set(L.map(p=>p.key))];
+  const RES=['Sin contactar','Mensaje enviado','Contestó','Agendó','No interesado','Número equivocado'];
+  return `<h1>Posventa</h1><p class="sub">Contactos de hoy, separados por producto y por motivo. El sistema los arma solo cada día.</p>
+  <div class="seg" style="margin-top:12px">${[['armazon','Lentes y armazón'],['lc','Lentes de contacto']].map(([k,l])=>`<button aria-pressed="${PTAB===k}" data-ptab="${k}">${l}<span class="c">${all.filter(p=>p.prod===k&&!p.hecho).length}</span></button>`).join('')}</div>
+  ${keys.map(k=>{const g=L.filter(p=>p.key===k);return `<section class="lane"><div class="lane-h"><h3>${MOTIVOS[k]}</h3><span class="count" style="margin-left:auto">${g.filter(p=>!p.hecho).length} de ${g.length}</span></div>${g.map(p=>`<div class="task pv" style="cursor:default"><span class="av ${p.hecho?'ok':'warn'}">${esc(iniciales(p.pac))}</span><div style="min-width:0"><div class="t1">${esc(p.pac)}</div><div class="t2"><span>${esc(p.det)}</span></div></div><div class="actions" style="justify-content:flex-end"><button class="btn wa sm" data-posv="${esc(p.clave)}">WhatsApp</button><select class="btn sm" aria-label="Resultado del contacto" data-res="${esc(p.clave)}">${RES.map(o=>`<option ${p.res===o?'selected':''}>${o}</option>`).join('')}</select></div></div>`).join('')}</section>`}).join('')||'<div class="empty" style="margin-top:16px">Sin contactos para hoy en este grupo.</div>'}`;
+};
+
+/* ================= Administración ================= */
+function tile(k,v,s){return `<div class="card"><span class="label">${k}</span><span class="saldo money">${v}</span><span class="tiny">${s}</span></div>`}
+VISTAS.resumen=function(){
+  const L=vis(); const ini=new Date(HOY.getFullYear(),HOY.getMonth(),1);
+  const mes=L.filter(t=>toD(t.fecha_venta)>=ini); const ventas=mes.reduce((s,t)=>s+total(t),0);
+  const porCobrar=L.filter(t=>t.estado!=='entregado').reduce((s,t)=>s+saldo(t),0);
+  const ent=L.filter(t=>t.estado==='entregado'&&ev(t,'entregado')>=ini);
+  const conCosto=ent.filter(t=>(+t.costo.mica||0)+(+t.costo.armazon||0)>0);
+  const fac=conCosto.length?conCosto.reduce((s,t)=>s+total(t),0)/conCosto.reduce((s,t)=>s+(+t.costo.mica||0)+(+t.costo.armazon||0),0):0;
+  const porVerif=DB.trabajos.flatMap(t=>t.pagos).filter(p=>!p.verificado).length;
+  const escal=[...L.filter(t=>t.estado==='avisado'&&diff(ev(t,'avisado'),HOY)>30),...L.filter(t=>t.estado==='garantia'),...L.filter(t=>t.estado==='enviado'&&sem(t)[0]==='bad'),...L.filter(t=>t.estado==='capturado'&&sem(t)[0]==='bad')];
+  const labs=(CFG.labs||[]).map(l=>{const ts=DB.trabajos.filter(t=>t.laboratorio===l.nombre&&ev(t,'enviado')&&ev(t,'recibido'));const dias=ts.length?ts.reduce((s,t)=>s+diff(ev(t,'enviado'),ev(t,'recibido')),0)/ts.length:null;const atiempo=ts.length?ts.filter(t=>!t.llega||ev(t,'recibido')<=addDays(t.llega,0.99)).length/ts.length*100:null;const gar=DB.trabajos.filter(t=>t.laboratorio===l.nombre&&ev(t,'garantia')).length;return {n:l.nombre,dias,atiempo,gar}});
+  const conAR=mes.filter(t=>/AR|Panoramic|Blue/i.test(t.tratamiento||'')).length;
+  return `<div class="hello"><div><div class="datel">${HOY.toLocaleDateString('es-MX',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())}</div><h1>Resumen de la óptica</h1></div>${ME.rol==='admin'?`<button class="btn primary" data-go="nuevo">${ico('plus','sm')}Nuevo trabajo</button>`:''}</div>
+  <div class="section"><div class="pipe" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+   ${tile('Ventas del mes',money(ventas),`${mes.length} trabajos · ticket promedio ${money(mes.length?ventas/mes.length:0)}`)}
+   ${tile('Saldo por cobrar',money(porCobrar),'en trabajos no entregados')}
+   ${tile('Factor real',fac?'×'+fac.toFixed(2):'—',fac?`entregados del mes con costo capturado`:'capture costos para calcularlo')}
+   ${tile('Tickets por verificar',porVerif,'pagos capturados sin leer del PDF')}
+  </div></div>
+  <div class="section"><div class="grid2">
+   <div class="panel"><div class="panel-head"><h3>Escalado a Dirección</h3><span class="count ${escal.length?'bad':''}">${escal.length}</span></div>${escal.length?`<div class="lane" style="margin-top:0">${escal.map(taskHTML).join('')}</div>`:'<div class="empty">Nada escalado.</div>'}</div>
+   <div class="panel"><div class="panel-head"><h3>Laboratorios</h3></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Laboratorio</th><th class="num">Días promedio</th><th class="num">A tiempo</th><th class="num">Garantías</th></tr></thead><tbody>
+    ${labs.map(l=>`<tr><td>${esc(l.n)}</td><td class="num">${l.dias==null?'—':l.dias.toFixed(1)}</td><td class="num">${l.atiempo==null?'—':Math.round(l.atiempo)+'%'}</td><td class="num">${l.gar}</td></tr>`).join('')}</tbody></table></div>
+    <h3 style="margin-top:8px">Ventas</h3><dl class="kv"><dt>Con antirreflejante o filtro</dt><dd>${mes.length?Math.round(conAR/mes.length*100)+'%':'—'}</dd><dt>Avisados sin recoger &gt;30 días</dt><dd>${L.filter(t=>t.estado==='avisado'&&diff(ev(t,'avisado'),HOY)>30).length}</dd><dt>Contactos de posventa pendientes</dt><dd>${posventaLista().filter(p=>!p.hecho).length}</dd></dl></div>
+  </div></div>
+  <div class="section"><h2>Trabajos en curso</h2><nav class="flow" aria-label="Trabajos por etapa">${GRUPOS.filter(g=>g[0]!=='entregado').map(([k,lab])=>{const g=L.filter(t=>t.estado===k);return `<button data-filter="${k}"><span class="fn">${g.length}</span><span class="fl">${lab}</span>${g.some(t=>sem(t)[0]==='bad')?'<span class="fd d-bad"></span>':''}</button>`}).join('')}</nav></div>`;
+};
+
+VISTAS.tickets=function(){
+  const P=DB.trabajos.flatMap(t=>t.pagos.map(p=>({...p,t}))).filter(p=>!p.verificado).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+  return `<h1>Tickets por verificar</h1><p class="sub">Pagos registrados. Los leídos del PDF y los capturados de una foto se comparan aquí contra el archivo.</p>
+  <div class="lane" style="margin-top:12px">${P.map(p=>`<div class="task pv" style="cursor:default"><span class="av ${p.origen==='leido'?'ok':'warn'}">${esc(iniciales(p.t.paciente_nombre))}</span><div style="min-width:0"><div class="t1">${money(p.monto)} · ${esc(p.forma)}</div><div class="t2"><span class="reason ${p.origen==='leido'?'ok':'warn'}">${p.origen==='leido'?'Leído del PDF':'Capturado a mano'}</span><span>${esc(p.t.paciente_nombre)} · venta ${esc(p.t.venta)} · ${fmt(p.fecha)}</span></div></div><div class="actions" style="justify-content:flex-end"><button class="btn sm" data-ver="${esc(p.archivo)}">${ico('eye','sm')}Ver ticket</button><button class="btn primary sm" data-verif="${p.id}">Coincide</button>${ME.rol==='admin'?`<button class="btn sm" data-corr="${p.id}">Corregir</button>`:''}</div></div>`).join('')||'<div class="empty">No hay tickets pendientes.</div>'}</div>`;
+};
+
+/* ---------- Comisiones ---------- */
+function quincena(off){let y=HOY.getFullYear(),m=HOY.getMonth(),h=HOY.getDate()<=15?0:1;let k=m*2+h+off;y+=Math.floor(k/24);k=((k%24)+24)%24;m=Math.floor(k/2);h=k%2;const ini=new Date(y,m,h?16:1),fin=h?new Date(y,m+1,0):new Date(y,m,15);return {ini,fin}}
+let QOFF=0, QASE='';
+function comisionesDe(ase,q){
+  const pagados=new Set(DB.cierres.flatMap(c=>Object.keys(c.detalle||{})));
+  const req=CFG.comMomento==='liquidado'?(t=>saldo(t)===0&&(t.estado==='entregado'||t.estado==='avisado'||t.estado==='listo')):(t=>t.estado==='entregado'&&saldo(t)===0);
+  const per=DB.trabajos.filter(t=>t.asesora_id===ase&&req(t)&&!pagados.has(t.id)&&(ev(t,'entregado')||ev(t,'listo')||HOY)<=addDays(q.fin,0.99));
+  return per.map(t=>({t,c:comision(t)}));
+}
+VISTAS.comisiones=function(){
+  const ases=ME.rol==='ventas'?[{id:ME.id,nombre:ME.nombre}]:DB.usuarios.filter(u=>u.rol==='ventas');
+  if(!QASE||!ases.some(a=>a.id===QASE)) QASE=ases[0]?ases[0].id:'';
+  const q=quincena(QOFF); const items=QASE?comisionesDe(QASE,q):[];
+  const gen=items.reduce((s,x)=>s+x.c.sum,0);
+  const cc=DB.contracargos.filter(c=>c.asesora_id===QASE&&c.estado==='pendiente');
+  let disp=gen, aplica=[]; cc.forEach(c=>{if(+c.monto<=disp+0.001){disp-=+c.monto;aplica.push(c)}});
+  const desc=gen-disp;
+  const cierres=DB.cierres.filter(c=>c.asesora_id===QASE).slice(0,6);
+  return `<h1>${ME.rol==='ventas'?'Mis comisiones':'Comisiones'}</h1><p class="sub">Se generan cuando el trabajo está ${esc(CFG.comMomento)}. Corte del ${fmt(q.ini)} al ${fmtY(q.fin)}.</p>
+  <div class="toolbar" style="margin-top:12px">${ases.length>1?`<select id="q-ase" aria-label="Asesora">${ases.map(a=>`<option value="${a.id}" ${a.id===QASE?'selected':''}>${esc(a.nombre)}</option>`).join('')}</select>`:''}
+   <select id="q-off" aria-label="Quincena">${[0,-1,-2].map(o=>{const x=quincena(o);return `<option value="${o}" ${o===QOFF?'selected':''}>${fmt(x.ini)} – ${fmtY(x.fin)}</option>`}).join('')}</select></div>
+  <div class="section"><div class="grid2">
+   ${tile('Generadas sin pagar',money(gen),`${items.length} trabajo${items.length===1?'':'s'}`)}
+   ${tile('A pagar',money(disp),desc?`Se descuentan ${money(desc)} de contracargos`:'Sin contracargos')}
+  </div></div>
+  <div class="section"><h2>Detalle</h2><div class="tbl-wrap"><table><thead><tr><th>Venta</th><th>Paciente</th><th>Concepto</th><th class="num">Base</th><th class="num">%</th><th class="num">Comisión</th><th>Regla</th></tr></thead><tbody>
+  ${items.flatMap(({t,c})=>c.lines.map((l,i)=>`<tr><td class="rx">${i?'':esc(t.venta)}</td><td>${i?'':esc(t.paciente_nombre)}</td><td>${l.lab}</td><td class="num">${money(l.base)}</td><td class="num">${l.pct}%</td><td class="num">${money(l.m)}</td><td>${l.promo?`<span class="pill ok">${esc(l.promo)}</span>`:'<span class="tiny">Estándar</span>'}</td></tr>`)).join('')||'<tr><td colspan="7" class="empty">Sin comisiones pendientes en este corte.</td></tr>'}
+  </tbody></table></div></div>
+  <div class="section"><h2>Contracargos</h2>${cc.length?cc.map(c=>`<div class="card"><div class="split"><div style="min-width:0"><b>Venta ${esc(c.venta||'')} · ${esc(c.paciente||'')}</b><div class="tiny">${esc(c.motivo||'')}</div></div><span class="pill warn">${money(c.monto)}</span></div>${ME.rol==='admin'?`<div class="actions"><button class="btn sm" data-condonar="${c.id}">Condonar con PIN</button></div>`:''}</div>`).join(''):'<div class="empty">Sin contracargos pendientes.</div>'}</div>
+  ${ME.rol==='admin'&&items.length?`<div class="actions" style="margin-top:14px"><button class="btn primary" data-cerrarq>Cerrar quincena y marcar pagado (${money(disp)})</button><button class="btn" data-copyq>Copiar reporte para Nómina</button></div>`:''}
+  ${cierres.length?`<div class="section"><h2>Pagos anteriores</h2><div class="tbl-wrap"><table><thead><tr><th>Periodo</th><th class="num">Generado</th><th class="num">Contracargos</th><th class="num">Pagado</th></tr></thead><tbody>${cierres.map(c=>`<tr><td>${fmt(c.periodo_ini)} – ${fmtY(c.periodo_fin)}</td><td class="num">${money(c.generado)}</td><td class="num">${money(c.contracargos)}</td><td class="num"><b>${money(c.pagado)}</b></td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+};
+
+/* ---------- Referidos ---------- */
+function refGanado(codigo){const R=CFG.ref||{};const ts=DB.trabajos.filter(t=>t.referido===codigo);const g=ts.filter(t=>t.estado==='entregado'&&saldo(t)===0).slice(0,+R.tope||99);return {ts,ganado:g.length*(+R.refiereMonto||0)}}
+VISTAS.referidos=function(){
+  const r=CFG.ref||{};
+  const rows=DB.referidos.map(x=>({...x,...refGanado(x.codigo)})).sort((a,b)=>b.ts.length-a.ts.length);
+  return `<h1>Referidos</h1><p class="sub">Cada paciente que recoge sus lentes recibe un código. Quien recomienda gana su saldo cuando el referido liquida y recoge.</p>
+  <div class="section"><div class="card"><div class="split"><h3>Montos del programa</h3><label class="switch"><input type="checkbox" id="ref-on" ${r.activo?'checked':''}> Programa activo</label></div>
+  <div class="fields">
+   <div class="f"><label for="ref-tipo">Beneficio para el referido</label><select id="ref-tipo"><option value="monto" ${r.nuevoTipo==='monto'?'selected':''}>Descuento en pesos</option><option value="porcentaje" ${r.nuevoTipo==='porcentaje'?'selected':''}>Descuento en %</option><option value="tratamiento" ${r.nuevoTipo==='tratamiento'?'selected':''}>Antirreflejante sin costo</option></select></div>
+   <div class="f"><label for="ref-val">Valor</label><input id="ref-val" inputmode="decimal" value="${r.nuevoValor||0}"></div>
+   <div class="f"><label for="ref-ref">Saldo para quien recomienda</label><input id="ref-ref" inputmode="decimal" value="${r.refiereMonto||0}"></div>
+   <div class="f"><label for="ref-min">Compra mínima del referido</label><input id="ref-min" inputmode="decimal" value="${r.minCompra||0}"></div>
+   <div class="f"><label for="ref-vig">Vigencia del saldo (meses)</label><input id="ref-vig" inputmode="numeric" value="${r.vigencia||6}"></div>
+   <div class="f"><label for="ref-tope">Tope de referidos por paciente</label><input id="ref-tope" inputmode="numeric" value="${r.tope||5}"></div>
+   <div class="f"><label for="ref-com">Comisión extra a la asesora (%)</label><input id="ref-com" inputmode="decimal" value="${r.comExtra||0}"></div>
+   <div class="f" style="align-self:end"><button class="btn primary" data-saveref>Guardar con PIN</button></div>
+  </div></div></div>
+  <div class="section"><h2>Pacientes que recomiendan</h2><div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Paciente</th><th>Referidos</th><th class="num">Ganado</th><th class="num">Usado</th><th class="num">Disponible</th><th></th></tr></thead><tbody>
+  ${rows.map(x=>`<tr><td class="rx">${esc(x.codigo)}</td><td><b>${esc(x.paciente_nombre)}</b></td><td>${x.ts.map(t=>`${esc(t.paciente_nombre)} <span class="pill ${t.estado==='entregado'&&!saldo(t)?'ok':'warn'}">${t.estado==='entregado'&&!saldo(t)?'Ganado':'En proceso'}</span>`).join('<br>')||'<span class="tiny">—</span>'}</td><td class="num">${money(x.ganado)}</td><td class="num">${money(x.usado)}</td><td class="num"><b>${money(x.ganado-x.usado)}</b></td><td>${x.ganado-x.usado>0?`<button class="btn sm" data-refusar="${esc(x.codigo)}">Aplicar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Los códigos se crean al entregar el primer trabajo de cada paciente.</td></tr>'}
+  </tbody></table></div></div>`;
+};
+
+/* ---------- Configuración ---------- */
+VISTAS.config=function(){
+  const inp=(id,v,lab,h='')=>`<div class="f"><label for="${id}">${lab}</label><input id="${id}" data-c="${id}" inputmode="decimal" value="${esc(v)}">${h?`<span class="hint">${h}</span>`:''}</div>`;
+  const P=CFG.promos||[];
+  return `<h1>Configuración</h1><p class="sub">Solo Dirección. Cada cambio se firma con PIN y queda en bitácora; los trabajos ya vendidos conservan su regla.</p>
+  <div class="section"><div class="card"><h3>Comisión estándar (%)</h3><div class="fields">${inp('com.armazon',CFG.com.armazon,'Armazones')}${inp('com.mica',CFG.com.mica,'Micas')}${inp('com.lc',CFG.com.lc,'Lentes de contacto')}${inp('com.accesorio',CFG.com.accesorio,'Accesorios')}</div>
+   <div class="f" style="max-width:320px"><label for="comMomento">La comisión se genera cuando el trabajo está</label><select id="comMomento" data-c="comMomento"><option ${CFG.comMomento==='liquidado y entregado'?'selected':''}>liquidado y entregado</option><option ${CFG.comMomento==='liquidado'?'selected':''}>liquidado</option></select></div></div></div>
+  <div class="section"><div class="card"><div class="split"><h3>Promociones de comisión</h3><span class="tiny">Se apagan solas al terminar su vigencia</span></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Activa</th><th>Nombre</th><th>Aplica a</th><th class="num">Extra</th><th>Vigencia</th><th></th></tr></thead><tbody>
+   ${P.map((p,i)=>`<tr><td><input type="checkbox" data-promo="${i}" ${p.activa?'checked':''} aria-label="Activar ${esc(p.nombre)}" style="width:18px;height:18px;accent-color:var(--accent)"></td><td><b>${esc(p.nombre)}</b></td><td>${esc({armazon:'Armazones',mica:'Micas',lc:'Lentes de contacto'}[p.cat]||p.cat)} ${esc(p.marca)}</td><td class="num">+${esc(p.extra)}%</td><td>${fmt(p.ini)} – ${fmtY(p.fin)}</td><td><button class="btn sm danger" data-delpromo="${i}">Quitar</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Sin promociones.</td></tr>'}</tbody></table></div>
+   <div class="fields"><div class="f w2"><label for="p-nom">Nueva promoción</label><input id="p-nom" placeholder="Ej. Marcolin otoño"></div><div class="f"><label for="p-cat">Categoría</label><select id="p-cat"><option value="armazon">Armazón</option><option value="mica">Mica</option><option value="lc">Lentes de contacto</option></select></div><div class="f"><label for="p-marca">Marca o línea</label><input id="p-marca" placeholder="Marcolin"></div>
+   <div class="f"><label for="p-extra">Comisión extra %</label><input id="p-extra" inputmode="decimal" value="2"></div><div class="f"><label for="p-ini">Inicio</label><input id="p-ini" type="date" value="${iso(HOY)}"></div><div class="f"><label for="p-fin">Fin</label><input id="p-fin" type="date" value="${iso(addDays(HOY,30))}"></div><div class="f" style="align-self:end"><button class="btn" type="button" data-addpromo>Agregar a la lista</button></div></div></div></div>
+  <div class="section"><div class="card"><h3>Cobro y márgenes</h3><div class="fields">${inp('anticipo',CFG.anticipo,'Anticipo mínimo (%)','para enviar al laboratorio')}${inp('factor.armazon',CFG.factor.armazon,'Factor armazón','precio ÷ costo')}${inp('factor.mica',CFG.factor.mica,'Factor micas','precio ÷ costo')}</div></div></div>
+  <div class="section"><div class="card"><h3>Laboratorios</h3><div class="tbl-wrap"><table><thead><tr><th>Laboratorio</th><th>Formato</th><th>Día de recolección</th><th class="num">Días de entrega</th></tr></thead><tbody>
+   ${(CFG.labs||[]).map((l,i)=>`<tr><td><b>${esc(l.nombre)}</b></td><td>${esc(l.formato||'')}</td><td><select data-lab-dia="${i}" aria-label="Día de recolección"><option value="">Sin día fijo</option>${['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map((d,k)=>`<option value="${k}" ${String(l.recoleccion_dia)===String(k)?'selected':''}>${d}</option>`).join('')}</select></td><td class="num"><input data-lab-dias="${i}" value="${esc(l.dias||0)}" inputmode="numeric" style="width:70px;text-align:right" aria-label="Días de entrega"></td></tr>`).join('')}</tbody></table></div></div></div>
+  <div class="section"><div class="card"><h3>Posventa y contacto</h3><div class="fields"><div class="f w2"><label for="waOptica">WhatsApp de la óptica</label><input id="waOptica" data-c="waOptica" inputmode="tel" value="${esc(CFG.waOptica)}"></div>${inp('mantenimiento',CFG.mantenimiento,'Mantenimiento cada (meses)')}${inp('revision',CFG.revision,'Revisión de la vista (meses)')}${inp('renovacion',CFG.renovacion,'Renovación sugerida (meses)')}<div class="f w2"><label for="videoMant">Enlace al video de mantenimiento</label><input id="videoMant" data-c="videoMant" value="${esc(CFG.videoMant||'')}" placeholder="https://…"></div></div></div></div>
+  <div class="actions" style="margin-top:14px"><button class="btn primary" data-savecfg>Guardar configuración con PIN</button></div>
+  <div class="section"><div class="card"><div class="split"><h3>Usuarios</h3><button class="btn sm" data-newuser>+ Nuevo usuario</button></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sede</th><th>Estado</th><th></th></tr></thead><tbody>
+   ${DB.usuarios.map(u=>`<tr><td><b>${esc(u.nombre)}</b></td><td class="rx">${esc(u.usuario)}</td><td>${esc({ventas:'Ventas',admin:'Dirección',contabilidad:'Contabilidad'}[u.rol])}</td><td>${esc(u.sede)}</td><td>${u.activo?'<span class="pill ok">Activo</span>':'<span class="pill mute">Baja</span>'}</td><td><button class="btn sm" data-edituser="${u.id}">Editar</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+};
+let CFGDRAFT=null;
+function leerConfig(){
+  const c=JSON.parse(JSON.stringify(CFGDRAFT||CFG));
+  document.querySelectorAll('[data-c]').forEach(el=>{const k=el.dataset.c.split('.');let v=el.value.trim();if(!['comMomento','waOptica','videoMant'].includes(k[0]))v=num(v);if(k[0]==='waOptica')v=v.replace(/\D/g,'');if(k.length>1)c[k[0]][k[1]]=v;else c[k[0]]=v});
+  document.querySelectorAll('[data-lab-dia]').forEach(el=>{c.labs[+el.dataset.labDia].recoleccion_dia=el.value===''?null:+el.value});
+  document.querySelectorAll('[data-lab-dias]').forEach(el=>{c.labs[+el.dataset.labDias].dias=num(el.value)});
+  document.querySelectorAll('[data-promo]').forEach(el=>{c.promos[+el.dataset.promo].activa=el.checked});
+  return c;
+}
+function modalUsuario(u){
+  const nuevo=!u; u=u||{nombre:'',usuario:'',rol:'ventas',sede:'Tacámbaro',activo:true};
+  modal(`<h3>${nuevo?'Nuevo usuario':'Editar usuario'}</h3><div class="form">
+    <div class="f"><label for="u-nom">Nombre completo</label><input id="u-nom" value="${esc(u.nombre)}"></div>
+    <div class="f"><label for="u-usr">Usuario</label><input id="u-usr" value="${esc(u.usuario)}" ${nuevo?'':'disabled'} autocapitalize="none"></div>
+    <div class="fields"><div class="f w2"><label for="u-rol">Rol</label><select id="u-rol"><option value="ventas" ${u.rol==='ventas'?'selected':''}>Ventas de óptica</option><option value="admin" ${u.rol==='admin'?'selected':''}>Dirección</option><option value="contabilidad" ${u.rol==='contabilidad'?'selected':''}>Contabilidad</option></select></div>
+    <div class="f w2"><label for="u-sede">Sede</label><select id="u-sede"><option ${u.sede==='Tacámbaro'?'selected':''}>Tacámbaro</option><option ${u.sede==='Morelia'?'selected':''}>Morelia</option></select></div></div>
+    <div class="f"><label for="u-pass">${nuevo?'Contraseña provisional (mín. 8)':'Nueva contraseña provisional (deje vacío para no cambiar)'}</label><input id="u-pass" type="text" autocomplete="off"></div>
+    ${nuevo?'':`<label class="switch"><input type="checkbox" id="u-act" ${u.activo?'checked':''}> Usuario activo</label>`}
+    <p class="tiny">Al entrar por primera vez, la persona crea su contraseña y su PIN.</p></div>
+    <div class="actions"><button class="btn primary" data-ok>Guardar con PIN</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+      if(!e.target.closest('[data-ok]')) return;
+      const g=id=>b.querySelector('#'+id)?b.querySelector('#'+id).value.trim():'';
+      const data={id:nuevo?'':u.id,nombre:g('u-nom'),usuario:g('u-usr'),rol:g('u-rol'),sede:g('u-sede'),pass:g('u-pass'),activo:nuevo?true:b.querySelector('#u-act').checked};
+      if(!data.nombre||!data.usuario){toast('Escriba nombre y usuario',true);return}
+      const pin=await pedirPIN('Firme el cambio de usuario'); if(!pin) return;
+      b.remove(); const r=await act('usuario_guardar',data,pin); if(r) toast('Usuario guardado');
+    });
+}
+
+/* ================= Detalle de trabajo ================= */
+const PASOS=[['capturado','Venta capturada','capturado'],['enviado','Pedido enviado','enviado'],['recibido','Llegó al COE','recibido'],['listo','Revisión de calidad aprobada','listo'],['avisado','Paciente avisado','avisado'],['entregado','Entregado','entregado']];
+function openJob(id){OPEN=id;drawSheet()}
+function closeSheet(){OPEN=null;document.getElementById('layer').innerHTML=''}
+function drawSheet(){
+  const t=DB&&DB.trabajos.find(x=>x.id===OPEN); if(!t) return closeSheet();
+  const [l,w]=sem(t); const idx=PASOS.findIndex(p=>p[0]===t.estado); const c=t.checklist||{};
+  const puede=ME.rol!=='contabilidad';
+  const rxRow=e=>`<tr><td><b>${e.toUpperCase()}</b></td>${[0,1,2,3,4,5].map(i=>`<td class="rx">${esc((t.rx[e]||[])[i]||'—')}</td>`).join('')}</tr>`;
+  const qc=[['g','Graduación OD/OI verificada en lensómetro'],['e','Eje y centrado correctos'],['a','Altura de bifocal o progresivo correcta'],['t','Material y tratamiento iguales a lo pedido'],['r','Sin rayones, manchas ni defectos']];
+  const lc=/contacto/i.test(t.tipo||'');
+  const ent=[['s','Saldo liquidado en caja',saldo(t)>0],['p',lc?'Lentes revisados con el paciente':'Lentes probados y ajustados al paciente'],['d','Demostración de tratamientos pagados'],['b','Bolsa de manta COE, estuche y paño'],['k','Tarjeta de agradecimiento con su nombre']].concat(patentada(t)?[['c','Certificado de mica patentada']]:[]).concat([['h','Garantía, fecha de mantenimiento y signos de alarma explicados'],['f','Firma de recibido (paciente o familiar)']]);
+  let action='';
+  if(!puede) action='';
+  else if(t.estado==='capturado'){const ok=pctPag(t)>=CFG.anticipo;action=`<div class="card"><h3>Siguiente paso</h3>${ok?`<p class="tiny">Entra en el ${t.laboratorio==='Sra. Angy'?'pedido del día de la Sra. Angy':'pedido de '+esc(t.laboratorio)}.</p>`:`<div class="alert bad">✕ Lleva ${Math.round(pctPag(t))}% de anticipo. Se necesita ${CFG.anticipo}% (${money(total(t)*CFG.anticipo/100)}) para pedir.</div>`}
+    <div class="actions">${t.laboratorio!=='Sra. Angy'?`<button class="btn primary" data-step="enviado" ${ok?'':'disabled'}>Marcar pedido enviado</button>`:''}${ok?'':`<button class="btn primary" data-pagar>${ico('ticket','sm')}Subir ticket de abono</button>`}<button class="btn" data-printlab>${ico('print','sm')}Hoja de laboratorio</button></div></div>`}
+  else if(t.estado==='enviado') action=`<div class="card"><h3>Siguiente paso</h3><p class="tiny">Llegada esperada ${fmt(t.llega)}. Al llegar se revisa la calidad.</p><div class="actions"><button class="btn primary" data-step="recibido">Registrar llegada</button><button class="btn wa" data-wa="retraso">Avisar retraso al paciente</button><button class="btn" data-printlab>${ico('print','sm')}Hoja de laboratorio</button></div></div>`;
+  else if(t.estado==='recibido'){const all=qc.every(([k])=>c[k]);action=`<div class="card"><h3>Revisión de calidad</h3><div class="checks">${qc.map(([k,lab])=>`<label><input type="checkbox" data-chk="${k}" ${c[k]?'checked':''}>${lab}</label>`).join('')}</div><div class="actions"><button class="btn primary" data-step="listo" ${all?'':'disabled'}>Aprobar y marcar listo</button><button class="btn danger" data-garantia>Rechazar: devolver al laboratorio</button></div></div>`}
+  else if(t.estado==='listo') action=`<div class="card"><h3>Siguiente paso</h3><p class="tiny">Avise hoy al paciente. El mensaje incluye el saldo y los teléfonos.</p><div class="actions"><button class="btn wa" data-wa="listo">Avisar por WhatsApp</button></div></div>`;
+  else if(t.estado==='avisado'){const all=ent.every(([k,,lock])=>c[k]&&!lock);action=`<div class="card"><h3>Entrega</h3>${saldo(t)?`<div class="alert warn">! Saldo de ${money(saldo(t))}. No se entrega sin liquidar.</div>`:''}<div class="checks">${ent.map(([k,lab,lock])=>`<label><input type="checkbox" data-chk="${k}" ${c[k]&&!lock?'checked':''} ${lock?'disabled':''}>${lab}${lock?'<span class="lock">Falta pagar</span>':''}</label>`).join('')}</div><div class="actions"><button class="btn primary" data-step="entregado" ${all?'':'disabled'}>Entregar</button>${saldo(t)?`<button class="btn" data-pagar>${ico('ticket','sm')}Subir ticket de liquidación</button>`:''}<button class="btn wa" data-wa="recordatorio">Recordatorio</button><button class="btn" data-printent>${ico('print','sm')}Hoja de entrega</button></div></div>`}
+  else if(t.estado==='garantia') action=`<div class="card"><h3>Garantía</h3><div class="alert bad">${esc(t.garantia_motivo||'Trabajo rechazado en revisión de calidad.')}</div><div class="actions"><button class="btn primary" data-step="enviado">Reenviar al laboratorio</button></div></div>`;
+  else {const fe=ev(t,'entregado');const rf=DB.referidos.find(r=>r.paciente_nombre===t.paciente_nombre);action=`<div class="card"><h3>Posventa</h3><dl class="kv"><dt>Seguimiento</dt><dd>${fmt(addDays(fe,7))}</dd><dt>Mantenimiento</dt><dd>${fmtY(addMonths(fe,+CFG.mantenimiento||6))}</dd>${rf?`<dt>Código de referido</dt><dd class="rx">${esc(rf.codigo)}</dd>`:''}</dl><div class="actions"><button class="btn danger" data-garantia>Abrir garantía</button><button class="btn" data-printent>${ico('print','sm')}Hoja de entrega</button></div></div>`}
+  const mg=margen(t);
+  document.getElementById('layer').innerHTML=`<div class="scrim" data-close><div class="sheet" role="dialog" aria-modal="true" aria-label="Trabajo ${esc(t.venta)}">
+  <div class="sheet-head"><span class="av ${l}">${esc(iniciales(t.paciente_nombre))}</span><div style="min-width:0"><h2>${esc(t.paciente_nombre)}</h2><div class="tiny">Venta <span class="rx">${esc(t.venta)}</span>${t.id_trabajo?` · Trabajo <span class="rx">${esc(t.id_trabajo)}</span>`:''} · ${esc(t.sede)} · ${esc(fmtTel(t.telefono))}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">${ENOM[t.estado]}</span><span class="reason ${l}">${esc(w)}</span></div></div><button class="btn sm x" data-x aria-label="Cerrar">Cerrar</button></div>
+  <div class="sheet-body">
+   ${action}
+   <div class="card"><h3>Avance</h3><ol class="timeline">${PASOS.map((p,i)=>{const d=ev(t,p[2]);const cls=t.estado==='garantia'?(d?'done':''):(i<idx||t.estado==='entregado'?'done':i===idx?'cur':'');return `<li class="${cls}"><span class="tdot"></span><span>${p[1]}</span><span class="when">${d?fmt(d):(p[0]==='recibido'&&t.llega?'esperado '+fmt(t.llega):'')}</span></li>`}).join('')}</ol></div>
+   <div class="card"><div class="split"><h3>Graduación y medidas</h3>${t.respaldo?'<span class="pill ok">Del expediente</span>':'<span class="pill warn">Sin respaldo</span>'}</div>
+   <div class="tbl-wrap"><table><thead><tr><th></th><th>Esf</th><th>Cil</th><th>Eje</th><th>Add</th><th>DIP</th><th>Alt</th></tr></thead><tbody>${rxRow('od')}${rxRow('oi')}</tbody></table></div></div>
+   <div class="card"><h3>Producto</h3><dl class="kv"><dt>Mica</dt><dd>${esc(t.tipo)} · ${esc(t.material)}</dd><dt>Tratamiento</dt><dd>${esc(t.tratamiento)}${patentada(t)?' <span class="pill">Lleva certificado</span>':''}</dd><dt>Armazón</dt><dd>${esc(t.armazon.desc||'—')}${t.armazon.sku?` <span class="tiny rx">${esc(t.armazon.sku)}</span>`:''}</dd><dt>Laboratorio</dt><dd>${esc(t.laboratorio)}</dd><dt>Asesora</dt><dd>${esc(t.asesora||'—')}</dd>${t.referido?`<dt>Referido por</dt><dd class="rx">${esc(t.referido)}</dd>`:''}</dl>
+   ${mg.length?`<div class="alert warn">! Margen bajo el objetivo: ${mg.join(', ')}</div>`:''}</div>
+   <div class="card"><div class="split"><h3>Pagos</h3><span class="saldo money">${saldo(t)?money(saldo(t))+' saldo':'Liquidado'}</span></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th>Ticket</th></tr></thead><tbody>${t.pagos.map(p=>`<tr><td>${fmt(p.fecha)}</td><td>${esc(p.forma)}</td><td class="num">${money(p.monto)}</td><td><button class="btn sm" data-ver="${esc(p.archivo)}">${ico('eye','sm')}Ver</button> ${p.verificado?'<span class="pill ok">Verificado</span>':p.origen==='leido'?'<span class="pill">Leído</span>':'<span class="pill warn">Por verificar</span>'}</td></tr>`).join('')}<tr><td colspan="2"><b>Total del trabajo</b></td><td class="num"><b>${money(total(t))}</b></td><td></td></tr></tbody></table></div></div>
+  </div></div></div>`;
+}
+function waMsg(t,kind){
+  const n=t.paciente_nombre.split(' ')[0]; const s=saldo(t);
+  if(kind==='listo') return `Hola ${n}, le saluda la óptica del Centro Ocular Especializado. ¡Sus lentes ya están listos! Puede pasar a recogerlos a nuestra sede ${t.sede}.${s?`\n\nSaldo pendiente: ${money(s)}.`:''}\n\nVenta: ${t.venta}\n${clinic()}`;
+  if(kind==='recordatorio') return `Hola ${n}, le recordamos que sus lentes le esperan en el Centro Ocular Especializado, sede ${t.sede}.${s?` Saldo pendiente: ${money(s)}.`:''} Le guardamos su trabajo hasta 6 meses según nuestra política de garantía.\n${clinic()}`;
+  return `Hola ${n}, le informamos que su trabajo (venta ${t.venta}) tendrá un ligero retraso por parte del laboratorio. Le avisaremos en cuanto llegue. Disculpe la molestia.\n${clinic()}`;
+}
+function modalGarantia(t){
+  modal(`<h3>Garantía · ${esc(t.paciente_nombre)}</h3><div class="form">
+   <div class="f"><label for="g-mot">Motivo</label><select id="g-mot"><option>Graduación incorrecta del laboratorio</option><option>Tratamiento distinto a lo pedido</option><option>Rayón o defecto de la mica</option><option>Altura o centrado mal medido en mostrador</option><option>Error de captura en la venta</option><option>Daño en el biselado</option><option>No tolera la graduación</option><option>Otro</option></select></div>
+   <div class="f"><label for="g-det">Detalle</label><input id="g-det" placeholder="Qué se encontró"></div>
+   <label class="switch"><input type="checkbox" id="g-imp"> Es imputable a la asesora (genera contracargo si la comisión ya se pagó)</label></div>
+   <div class="actions"><button class="btn danger" data-ok>Registrar garantía</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+     if(!e.target.closest('[data-ok]')) return;
+     const motivo=b.querySelector('#g-mot').value+(b.querySelector('#g-det').value.trim()?': '+b.querySelector('#g-det').value.trim():'');
+     const imp=b.querySelector('#g-imp').checked; b.remove();
+     const r=await act('trabajo_estado',{id:t.id,estado:'garantia',motivo,imputable_asesora:imp}); if(r) toast('Garantía registrada');
+   });
+}
+
+/* ---------- impresión (una hoja, con logo) ---------- */
+function imprimir(html){
+  const z=document.getElementById('printzone');
+  z.innerHTML=`<div class="phead"><div class="logo">COE</div><div><b>Centro Ocular Especializado</b><br><span>Óptica · ${esc(clinic())}</span></div></div>${html}`;
+  document.body.classList.add('printing'); setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('printing'),300)},60);
+}
+function hojaLab(t){
+  const r=e=>(t.rx[e]||[]);
+  return `<h2>Hoja de laboratorio</h2><table class="ptab"><tr><td><b>Venta</b> ${esc(t.venta)}</td><td><b>ID trabajo</b> ${esc(t.id_trabajo||'—')}</td><td><b>Sucursal</b> ${esc(t.sede)}</td></tr>
+  <tr><td colspan="2"><b>Paciente</b> ${esc(t.paciente_nombre)}</td><td><b>Teléfono</b> ${esc(fmtTel(t.telefono))}</td></tr>
+  <tr><td><b>Fecha de venta</b> ${fmtY(t.fecha_venta)}</td><td><b>Entrega</b> ${t.llega?fmtY(addDays(t.llega,2)):'—'}</td><td><b>Laboratorio</b> ${esc(t.laboratorio)}</td></tr>
+  <tr><td><b>Tipo</b> ${esc(t.tipo)}</td><td><b>Material</b> ${esc(t.material)}</td><td><b>Tratamiento</b> ${esc(t.tratamiento)}</td></tr>
+  <tr><td colspan="3"><b>Armazón</b> ${esc(t.armazon.desc||'—')} ${esc(t.armazon.sku||'')}</td></tr></table>
+  <table class="ptab grid"><tr><th></th><th>Esfera</th><th>Cilindro</th><th>Eje</th><th>Adición</th><th>DIP</th><th>Altura</th></tr>
+  ${['od','oi'].map(e=>`<tr><th>${e==='od'?'OD':'OI'}</th>${[0,1,2,3,4,5].map(i=>`<td>${esc(r(e)[i]||'')}</td>`).join('')}</tr>`).join('')}</table>
+  <p style="margin-top:28px">Revisó: ______________________ &nbsp;&nbsp; Biselador: ______________________</p>`;
+}
+function hojaEntrega(t){
+  const fe=ev(t,'entregado')||HOY;
+  return `<h2>Entrega de lentes</h2><p><b>${esc(t.paciente_nombre)}</b> · Venta ${esc(t.venta)} · ${fmtY(fe)}</p>
+  <p><b>Su trabajo:</b> ${esc(t.tipo)} · ${esc(t.material)} · ${esc(t.tratamiento)} · ${esc(t.armazon.desc||'')}</p>
+  <h3>Garantía</h3><p>Cubrimos el 100% de la mica si no tolera la graduación dentro del primer mes. Armazón: línea premium 2 años, línea media 6 meses, solo por defecto de fabricación. Conserve esta hoja.</p>
+  <h3>Mantenimiento sin costo</h3><p>Su próximo mantenimiento: <b>${fmtY(addMonths(fe,+CFG.mantenimiento||6))}</b>. Incluye limpieza profunda, cambio de plaquetas y ajuste del armazón.</p>
+  <h3>Cuidados</h3><p>Lave sus lentes con agua y jabón neutro y séquelos con el paño. No use papel ni ropa. Guárdelos siempre en su estuche.</p>
+  <h3>Acuda a consulta de inmediato si nota</h3><p>Baja súbita de visión · dolor de ojo · ojo rojo con lagaña · destellos o moscas nuevas · una sombra o cortina en la vista · visión doble repentina.</p>
+  <p style="margin-top:28px">Recibí de conformidad: ______________________________</p>`;
+}
+
+/* ================= eventos ================= */
+function bindView(){
+  const m=document.getElementById('main');
+  const q=document.getElementById('q'); if(q) q.addEventListener('input',e=>{TQ=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)});
+  const xq=document.getElementById('exq'); if(xq) xq.addEventListener('input',e=>{EX.q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('exq');n.focus();n.setSelectionRange(p,p)});
+  const tk=document.getElementById('tk-new'); if(tk) tk.addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
+    if(f.size>15*1024*1024){toast('El archivo pesa más de 15 MB',true);return}
+    NEW.file=f;NEW.leyendo=true;render();const L=leerTicket(await textoPDF(f));NEW.leido={};
+    const map={venta:'venta',id_trabajo:'id_trabajo',paciente:'paciente_nombre',telefono:'telefono',total:'total',anticipo:'anticipo',forma:'forma'};
+    Object.entries(map).forEach(([a,b])=>{if(L[a]!=null&&L[a]!==''){NEW.f[b]=String(L[a]);NEW.leido[b]=L[a]}}); if(NEW.leido.anticipo!=null) NEW.leido.anticipo=L.anticipo;
+    NEW.leyendo=false;render()});
+  const wz=document.getElementById('wiz'); if(wz){wz.addEventListener('input',wizCheck);wz.addEventListener('change',wizCheck);wizCheck()}
+  m.querySelectorAll('[data-res]').forEach(s=>s.addEventListener('change',()=>{const p=posventaLista().find(x=>x.clave===s.dataset.res);act('posventa_resultado',{clave:p.clave,motivo:p.key,paciente:p.pac,resultado:s.value})}));
+  const qa=document.getElementById('q-ase'); if(qa) qa.addEventListener('change',()=>{QASE=qa.value;render()});
+  const qo=document.getElementById('q-off'); if(qo) qo.addEventListener('change',()=>{QOFF=+qo.value;render()});
+}
+document.getElementById('main').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click()}});
+document.getElementById('main').addEventListener('click',async e=>{
+  const C=s=>e.target.closest(s);
+  let el;
+  if(el=C('[data-ver]')){verArchivo(el.dataset.ver);return}
+  if(el=C('[data-tstat]')){TSTAT=el.dataset.tstat;render();return}
+  if(el=C('[data-ptab]')){PTAB=el.dataset.ptab;render();return}
+  if(el=C('[data-filter]')){TSTAT=el.dataset.filter;VIEW='trabajos';render();window.scrollTo(0,0);return}
+  if(el=C('[data-go]')){VIEW=el.dataset.go;if(VIEW==='nuevo')resetNew();render();window.scrollTo(0,0);return}
+  if(el=C('[data-open]')){openJob(el.dataset.open);return}
+  /* asistente */
+  if(el=C('[data-wiz]')){if(el.disabled)return;wizCheck();if(NEW.step===1&&!w1Check())return;NEW.step=+el.dataset.wiz;render();window.scrollTo(0,0);return}
+  if(C('[data-tkreset]')){NEW.file=null;NEW.leido={};render();return}
+  if(el=C('[data-lab]')){NEW.lab=el.dataset.lab;wizCheck();render();return}
+  if(C('[data-wsave]')){wizCheck();if(NEW.gar&&NEW.refOk)wizSave();return}
+  if(el=C('[data-pickpac]')){NEW.paciente_id=el.dataset.pickpac;render();return}
+  if(C('[data-goexpnew]')){EX.nuevo=true;EX.sel=null;EX.form=false;EX.prefill={nombre:NEW.f.paciente_nombre,telefono:NEW.f.telefono};EX.regresar=true;EX.dx=[];VIEW='expediente';render();window.scrollTo(0,0);return}
+  if(el=C('[data-expadd]')){EX.sel=el.dataset.expadd;EX.form=true;EX.regresar=true;EX.dx=[];VIEW='expediente';render();window.scrollTo(0,0);return}
+  /* expediente */
+  if(el=C('[data-exp]')){EX.sel=el.dataset.exp;EX.form=false;render();window.scrollTo(0,0);return}
+  if(C('[data-expnew]')){EX.nuevo=true;EX.prefill={};EX.dx=[];render();return}
+  if(C('[data-expform]')){EX.form=true;EX.dx=[];render();window.scrollTo(0,0);return}
+  if(C('[data-expback]')){if(EX.regresar){EX.regresar=false;EX.nuevo=false;EX.form=false;VIEW='nuevo'}else if(EX.form)EX.form=false;else if(EX.nuevo)EX.nuevo=false;else EX.sel=null;render();window.scrollTo(0,0);return}
+  if(el=C('[data-dx]')){const d=el.dataset.dx;EX.dx=EX.dx.includes(d)?EX.dx.filter(x=>x!==d):[...EX.dx,d];el.setAttribute('aria-pressed',EX.dx.includes(d));return}
+  if(el=C('[data-expsave]')){expSave(el);return}
+  /* pedidos */
+  if(C('[data-angycopy]')){const L=pedidoAngy();const txt=`PEDIDO ${fechaAngy()}\n\n`+L.map((t,i)=>`${i+1}. ${t.paciente_nombre.toUpperCase()}\n   ${tipoAngy(t)} · ${tratAngy(t)}\n   OD ${rxAngy(t.rx.od)}${(t.rx.od||[])[3]?'  ADD '+t.rx.od[3]:''}\n   OS ${rxAngy(t.rx.oi)}${(t.rx.oi||[])[3]?'  ADD '+t.rx.oi[3]:''}`).join('\n\n');
+    navigator.clipboard?.writeText(txt).then(()=>toast('Pedido copiado; péguelo en el grupo de la Sra. Angy'),()=>toast('No se pudo copiar',true));return}
+  if(C('[data-printangy]')){imprimir(tablaAngy(pedidoAngy()));return}
+  if(C('[data-angysend]')){const ids=pedidoAngy().map(t=>t.id);const r=await act('pedido_enviar',{ids,llega:iso(llegadaLab('Sra. Angy'))});if(r)toast('Pedido marcado como enviado');return}
+  if(el=C('[data-hvsend]')){const t=DB.trabajos.find(x=>x.id===el.dataset.hvsend);const r=await act('trabajo_estado',{id:t.id,estado:'enviado',llega:iso(llegadaLab(t.laboratorio))});if(r)toast('Orden enviada');return}
+  if(el=C('[data-printhv]')){const t=DB.trabajos.find(x=>x.id===el.dataset.printhv);imprimir(hojaLab(t));return}
+  /* posventa */
+  if(el=C('[data-posv]')){const p=posventaLista().find(x=>x.clave===el.dataset.posv);mensajeWA(msgPosv(p),p.tel,()=>act('posventa_resultado',{clave:p.clave,motivo:p.key,paciente:p.pac,resultado:'Mensaje enviado'}));return}
+  /* tickets */
+  if(el=C('[data-verif]')){const r=await act('pago_verificar',{id:el.dataset.verif});if(r)toast('Ticket verificado');return}
+  if(el=C('[data-corr]')){const id=el.dataset.corr;modal(`<h3>Corregir monto del ticket</h3><div class="f"><label for="c-m">Monto correcto según el ticket</label><input id="c-m" inputmode="decimal"></div><div class="actions"><button class="btn primary" data-ok>Corregir con PIN</button><button class="btn" data-k>Cancelar</button></div>`,async(ev2,b)=>{if(!ev2.target.closest('[data-ok]'))return;const m=num(b.querySelector('#c-m').value);if(m<=0){toast('Monto no válido',true);return}const pin=await pedirPIN('Firme la corrección');if(!pin)return;b.remove();const r=await act('pago_corregir',{id,monto:m},pin);if(r)toast('Monto corregido')});return}
+  /* comisiones */
+  if(el=C('[data-condonar]')){const pin=await pedirPIN('Firme la condonación');if(!pin)return;const r=await act('contracargo_condonar',{id:el.dataset.condonar,motivo:'Condonado por Dirección'},pin);if(r)toast('Contracargo condonado');return}
+  if(C('[data-cerrarq]')||C('[data-copyq]')){
+    const q=quincena(QOFF);const items=comisionesDe(QASE,q);const gen=items.reduce((s,x)=>s+x.c.sum,0);
+    const cc=DB.contracargos.filter(c=>c.asesora_id===QASE&&c.estado==='pendiente');let disp=gen,apl=[];cc.forEach(c=>{if(+c.monto<=disp+0.001){disp-=+c.monto;apl.push(c.id)}});
+    const ase=DB.usuarios.find(u=>u.id===QASE);
+    if(C('[data-copyq]')){const txt=`Comisiones óptica · ${ase?ase.nombre:''}\nPeriodo ${fmt(q.ini)} – ${fmtY(q.fin)}\n\n`+items.map(({t,c})=>`Venta ${t.venta} · ${t.paciente_nombre}: ${money(c.sum)}`).join('\n')+`\n\nGenerado: ${money(gen)}\nContracargos: ${money(gen-disp)}\nA pagar: ${money(disp)}`;navigator.clipboard?.writeText(txt).then(()=>toast('Reporte copiado'));return}
+    const pin=await pedirPIN(`Cerrar quincena: pagar ${money(disp)}`);if(!pin)return;
+    const detalle={};items.forEach(({t,c})=>detalle[t.id]={monto:c.sum,venta:t.venta});
+    const r=await act('comisiones_cerrar',{asesora_id:QASE,ini:iso(q.ini),fin:iso(q.fin),generado:gen,contracargos:gen-disp,pagado:disp,detalle,contracargo_ids:apl},pin);if(r)toast('Quincena cerrada');return}
+  /* referidos */
+  if(C('[data-saveref]')){const g=id=>document.getElementById(id);const ref={activo:g('ref-on').checked,nuevoTipo:g('ref-tipo').value,nuevoValor:num(g('ref-val').value),refiereMonto:num(g('ref-ref').value),minCompra:num(g('ref-min').value),vigencia:num(g('ref-vig').value),tope:num(g('ref-tope').value),comExtra:num(g('ref-com').value)};
+    const pin=await pedirPIN('Firme los montos de referidos');if(!pin)return;const r=await act('config_guardar',{valor:{ref}},pin);if(r)toast('Montos guardados');return}
+  if(el=C('[data-refusar]')){const cod=el.dataset.refusar;modal(`<h3>Aplicar saldo · ${esc(cod)}</h3><div class="f"><label for="ru-m">Monto que se aplica en esta compra</label><input id="ru-m" inputmode="decimal"></div><div class="actions"><button class="btn primary" data-ok>Aplicar con PIN</button><button class="btn" data-k>Cancelar</button></div>`,async(ev2,b)=>{if(!ev2.target.closest('[data-ok]'))return;const m=num(b.querySelector('#ru-m').value);if(m<=0)return;const pin=await pedirPIN('Firme el uso del saldo');if(!pin)return;b.remove();const r=await act('referido_usar',{codigo:cod,monto:m},pin);if(r)toast('Saldo aplicado')});return}
+  /* configuración */
+  if(C('[data-addpromo]')){const v=id=>document.getElementById(id).value.trim();if(!v('p-nom')||!v('p-marca')){toast('Escriba nombre y marca de la promoción',true);return}
+    CFGDRAFT=leerConfig();CFGDRAFT.promos=[...(CFGDRAFT.promos||[]),{nombre:v('p-nom'),cat:v('p-cat'),marca:v('p-marca'),extra:num(v('p-extra')),ini:v('p-ini'),fin:v('p-fin'),activa:true}];
+    const keep=CFG;CFG=CFGDRAFT;render();CFG=keep;toast('Agregada. Falta guardar con PIN.');return}
+  if(el=C('[data-delpromo]')){CFGDRAFT=leerConfig();CFGDRAFT.promos.splice(+el.dataset.delpromo,1);const keep=CFG;CFG=CFGDRAFT;render();CFG=keep;toast('Quitada. Falta guardar con PIN.');return}
+  if(C('[data-savecfg]')){const valor=leerConfig();const pin=await pedirPIN('Firme la configuración');if(!pin)return;const r=await act('config_guardar',{valor},pin);if(r){CFGDRAFT=null;toast('Configuración guardada')}return}
+  if(C('[data-newuser]')){modalUsuario(null);return}
+  if(el=C('[data-edituser]')){modalUsuario(DB.usuarios.find(u=>u.id===el.dataset.edituser));return}
+});
+document.getElementById('layer').addEventListener('click',async e=>{
+  if(e.target.matches('[data-close]')||e.target.closest('[data-x]')){closeSheet();return}
+  const t=DB&&DB.trabajos.find(x=>x.id===OPEN); if(!t) return;
+  const C=s=>e.target.closest(s); let el;
+  if(el=C('[data-ver]')){verArchivo(el.dataset.ver);return}
+  if(el=C('[data-step]')){const s=el.dataset.step;const data={id:t.id,estado:s};if(s==='enviado')data.llega=iso(llegadaLab(t.laboratorio));const r=await act('trabajo_estado',data);if(r)toast('Etapa: '+ENOM[s]);return}
+  if(el=C('[data-chk]')){const c={...(t.checklist||{})};c[el.dataset.chk]=el.checked;t.checklist=c;drawSheet();rpc('opt_accion',{p_token:TOKEN,p_accion:'trabajo_checklist',p_data:{id:t.id,checklist:c},p_pin:null}).catch(x=>toast(cleanErr(x),true));return}
+  if(C('[data-pagar]')){const falta=t.estado==='capturado'?Math.max(0,total(t)*CFG.anticipo/100-pagado(t)):saldo(t);modalPago(t,t.estado==='capturado'?'Abono al anticipo':'Liquidar saldo',falta);return}
+  if(C('[data-garantia]')){modalGarantia(t);return}
+  if(C('[data-printlab]')){imprimir(hojaLab(t));return}
+  if(C('[data-printent]')){imprimir(hojaEntrega(t));return}
+  if(el=C('[data-wa]')){const k=el.dataset.wa;mensajeWA(waMsg(t,k),t.telefono,k==='listo'?async()=>{const r=await act('trabajo_estado',{id:t.id,estado:'avisado'});if(r)toast('Aviso registrado')}:()=>act('aviso_registrar',{id:t.id,tipo:k}));return}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const L=document.getElementById('layer');const sc=L.querySelectorAll('.scrim');if(sc.length>1)sc[sc.length-1].remove();else closeSheet()}});
+
+/* ================= arranque ================= */
+(async function(){
+  if(TOKEN){try{await cargar()}catch(e){TOKEN=null;store.del('coeopt-token')}}
+  render();
+  setInterval(async()=>{if(TOKEN&&ME&&!BUSY&&!document.querySelector('.scrim.center')&&VIEW!=='nuevo'&&VIEW!=='config'&&VIEW!=='referidos'&&!EX.form&&!EX.nuevo){try{await cargar();render();if(OPEN)drawSheet()}catch(e){}}},60000);
+})();
+
+</script>
+</body>
+</html>
