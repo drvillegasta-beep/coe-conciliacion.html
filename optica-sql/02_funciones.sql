@@ -73,29 +73,4 @@ begin
   return jsonb_build_object('ok',true);
 end $$;
 
--- ===== Lectura de todo lo que la app necesita =====
-create or replace function public.opt_datos(p_token uuid)
-returns jsonb language plpgsql security definer set search_path=public as $$
-declare u public.opt_usuarios; r jsonb;
-begin
-  u := opt__sesion(p_token);
-  select jsonb_build_object(
-    'yo', jsonb_build_object('id',u.id,'nombre',u.nombre,'rol',u.rol,'sede',u.sede,'debe_cambiar',u.debe_cambiar),
-    'hoy', (now() at time zone 'America/Mexico_City')::date,
-    'config', (select valor from opt_config where clave='general'),
-    'trabajos', coalesce((select jsonb_agg(to_jsonb(t) || jsonb_build_object(
-        'pagos', coalesce((select jsonb_agg(to_jsonb(p) order by p.fecha) from opt_pagos p where p.trabajo_id=t.id),'[]'::jsonb),
-        'asesora', (select nombre from opt_usuarios a where a.id=t.asesora_id)) order by t.creado desc)
-      from opt_trabajos t where t.estado<>'cancelado' and (t.estado<>'entregado' or t.fecha_venta > (now()-interval '400 days')::date)),'[]'::jsonb),
-    'pacientes', coalesce((select jsonb_agg(to_jsonb(pa) || jsonb_build_object(
-        'examenes', coalesce((select jsonb_agg(to_jsonb(e) order by e.fecha desc, e.creado desc) from opt_examenes e where e.paciente_id=pa.id),'[]'::jsonb)) order by pa.nombre)
-      from opt_pacientes pa),'[]'::jsonb),
-    'posventa', coalesce((select jsonb_object_agg(clave, jsonb_build_object('resultado',resultado,'fecha',fecha)) from opt_posventa),'{}'::jsonb),
-    'contracargos', coalesce((select jsonb_agg(to_jsonb(c) || jsonb_build_object('paciente',(select paciente_nombre from opt_trabajos x where x.id=c.trabajo_id),'venta',(select venta from opt_trabajos x where x.id=c.trabajo_id)) order by c.creado desc) from opt_contracargos c where u.rol<>'ventas' or c.asesora_id=u.id),'[]'::jsonb),
-    'cierres', coalesce((select jsonb_agg(to_jsonb(c) order by c.periodo_fin desc) from opt_comisiones_cierres c where u.rol<>'ventas' or c.asesora_id=u.id),'[]'::jsonb),
-    'referidos', coalesce((select jsonb_agg(to_jsonb(r) order by r.creado desc) from opt_referidos r),'[]'::jsonb),
-    'usuarios', case when u.rol='admin' then coalesce((select jsonb_agg(jsonb_build_object('id',id,'nombre',nombre,'usuario',usuario,'rol',rol,'sede',sede,'activo',activo,'tiene_pin',pin_hash is not null) order by nombre) from opt_usuarios),'[]'::jsonb)
-                else coalesce((select jsonb_agg(jsonb_build_object('id',id,'nombre',nombre,'rol',rol)) from opt_usuarios where rol='ventas'),'[]'::jsonb) end
-  ) into r;
-  return r;
-end $$;
+-- opt_datos: ver 04_datos.sql (versión corregida)
