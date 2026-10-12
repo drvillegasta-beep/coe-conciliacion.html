@@ -646,7 +646,7 @@ document.getElementById('main').addEventListener('submit',async e=>{
   if(e.target.id==='flogin'){
     const u=document.getElementById('lg-u').value.trim(), p=document.getElementById('lg-p').value; const err=document.getElementById('lg-err');
     err.innerHTML='<div class="alert info">Entrando…</div>';
-    try{const r=await rpc('opt_login',{p_usuario:u,p_pass:p});TOKEN=r.token;store.set('coeopt-token',TOKEN);await cargar();VIEW=store.get('coeopt-tab')||'';render()}
+    try{const r=await rpc('opt_login',{p_usuario:u,p_pass:p});if(!r||r.error||!r.token) throw new Error((r&&r.error)||'Usuario o contraseña incorrectos.');TOKEN=r.token;store.set('coeopt-token',TOKEN);await cargar();VIEW=store.get('coeopt-tab')||'';render()}
     catch(x){err.innerHTML=`<div class="alert bad">✕ ${esc(cleanErr(x))}</div>`}
   }
   if(e.target.id==='fcambio'){

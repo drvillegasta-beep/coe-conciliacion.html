@@ -1,0 +1,2 @@
+-- Aplicado como opt_06_login_bloqueo (12 oct 2026): opt_login devuelve {error} en lugar de lanzar excepción,
+-- para que el contador de intentos fallidos y el bloqueo de 15 minutos sí se guarden.
