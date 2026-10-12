@@ -1,0 +1,4 @@
+-- Aplicado en Supabase como migración opt_05_bajas_doble_pin (12 oct 2026).
+-- Borrado con doble PIN: solicita una persona (PIN 1), autoriza otra de Dirección (PIN 2) el mismo día antes de las 18:30.
+-- Es baja recuperable: el registro se marca con borrado_en y deja de verse en la app; opt_bajas guarda el respaldo completo.
+-- Cierre automático: pg_cron 'opt_cerrar_bajas_1830' a las 00:30 UTC (18:30 en México).

@@ -536,7 +536,8 @@ function renderTabs(){
   const urg=vis().filter(t=>prioridad(t)==='ahora').length;
   const pv=posventaLista().filter(p=>!p.hecho).length;
   const tk=DB.trabajos.flatMap(t=>t.pagos).filter(p=>!p.verificado).length;
-  nav.innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${k===VIEW}" data-tab="${k}">${ico(TAB_ICON[k])}<span class="lbl">${innerWidth<=760&&TAB_SHORT[k]?TAB_SHORT[k]:l}</span>${(k==='tablero'||k==='resumen')&&urg?`<span class="n">${urg}</span>`:''}${k==='posventa'&&pv?`<span class="n" style="background:var(--accent)">${pv}</span>`:''}${k==='tickets'&&tk?`<span class="n" style="background:var(--warn)">${tk}</span>`:''}</button>`).join('');
+  const bj=(DB.bajas||[]).filter(b=>b.estado==='abierta').length;
+  nav.innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${k===VIEW}" data-tab="${k}">${ico(TAB_ICON[k])}<span class="lbl">${innerWidth<=760&&TAB_SHORT[k]?TAB_SHORT[k]:l}</span>${(k==='tablero'||k==='resumen')&&(urg+bj)?`<span class="n">${urg+bj}</span>`:''}${k==='posventa'&&pv?`<span class="n" style="background:var(--accent)">${pv}</span>`:''}${k==='tickets'&&tk?`<span class="n" style="background:var(--warn)">${tk}</span>`:''}</button>`).join('');
 }
 const VISTAS={};
 function render(){
@@ -677,6 +678,7 @@ VISTAS.tablero=function(){
     <button class="bigbtn" data-go="pedidos"><span class="ic">${pedido}</span><span><b>Pedido del día</b><small>${pedido===1?'1 trabajo listo':pedido+' trabajos listos'} para la Sra. Angy</small></span></button>
   </div>
   <nav class="flow" aria-label="Trabajos por etapa">${flow}</nav>
+  ${bajasPanel()}
   ${lane('bad','Atender ahora','Retrasos o pendientes que frenan una entrega',ahora,'Nada urgente.')}
   ${lane('warn','Durante el día','Pendientes de hoy',hoy,'Nada más para hoy.')}
   <div class="calm" data-go="trabajos" role="button" tabindex="0"><span class="lft">${ico('check')}<span><b>${ok.length} trabajos van en tiempo</b> <span class="tiny">· no requieren acción</span></span></span><span class="go">Ver ${ico('chev','sm')}</span></div>
@@ -855,7 +857,7 @@ function vExpDetalle(p){
   if(ex&&prev.length){const d=['od','oi'].map(e=>Math.abs(num(g4(ex,e)[0])-num(g4(prev[0],e)[0]))); if(Math.max(...d)>=0.75) cambio=`<div class="alert warn">! Cambio de esfera de ${Math.max(...d).toFixed(2)} D contra la graduación anterior. Confirme antes de pedir micas.</div>`;}
   return `<button class="btn sm" data-expback>‹ Expedientes</button>
   <div class="split" style="margin-top:12px"><div><h1>${esc(p.nombre)}</h1><p class="sub">${edad(p.nacimiento)} años · nació el ${fmtY(p.nacimiento)} · ${esc(p.expediente)} · ${esc(fmtTel(p.telefono))}</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expform>+ Nueva graduación</button>':''}</div>
-  <div class="section">${cambio}${ex?expResumen(p,ex,false):'<div class="empty">Sin graduación capturada.</div>'}</div>
+  <div class="section">${cambio}${ex?expResumen(p,ex,false)+(ME.rol!=='contabilidad'?`<div class="actions">${bajaAbierta(ex.id)?'<span class="pill warn">Borrado solicitado · pendiente de Dirección</span>':`<button class="btn sm danger" data-bjexam="${ex.id}">Solicitar borrado de esta graduación</button>`}</div>`:''):'<div class="empty">Sin graduación capturada.</div>'}</div>
   ${prev.length?`<div class="section"><h2>Graduaciones anteriores</h2>${prev.map(x=>`<div class="card"><div class="split"><b>${fmtY(x.fecha)}</b><span class="tiny">${esc(x.optometrista||'')}</span></div>${rxTable(x)}<div class="chips">${(x.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div>`).join('')}</div>`:''}
   <div class="section"><h2>Trabajos de óptica</h2>${trab.length?`<div class="lane" style="margin-top:0">${trab.map(taskHTML).join('')}</div>`:'<div class="empty">Sin trabajos registrados.</div>'}</div>`;
 }
@@ -995,6 +997,7 @@ VISTAS.resumen=function(){
   const labs=(CFG.labs||[]).map(l=>{const ts=DB.trabajos.filter(t=>t.laboratorio===l.nombre&&ev(t,'enviado')&&ev(t,'recibido'));const dias=ts.length?ts.reduce((s,t)=>s+diff(ev(t,'enviado'),ev(t,'recibido')),0)/ts.length:null;const atiempo=ts.length?ts.filter(t=>!t.llega||ev(t,'recibido')<=addDays(t.llega,0.99)).length/ts.length*100:null;const gar=DB.trabajos.filter(t=>t.laboratorio===l.nombre&&ev(t,'garantia')).length;return {n:l.nombre,dias,atiempo,gar}});
   const conAR=mes.filter(t=>/AR|Panoramic|Blue/i.test(t.tratamiento||'')).length;
   return `<div class="hello"><div><div class="datel">${HOY.toLocaleDateString('es-MX',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())}</div><h1>Resumen de la óptica</h1></div>${ME.rol==='admin'?`<button class="btn primary" data-go="nuevo">${ico('plus','sm')}Nuevo trabajo</button>`:''}</div>
+  ${bajasPanel()}
   <div class="section"><div class="pipe" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
    ${tile('Ventas del mes',money(ventas),`${mes.length} trabajos · ticket promedio ${money(mes.length?ventas/mes.length:0)}`)}
    ${tile('Saldo por cobrar',money(porCobrar),'en trabajos no entregados')}
@@ -1008,7 +1011,7 @@ VISTAS.resumen=function(){
     ${labs.map(l=>`<tr><td>${esc(l.n)}</td><td class="num">${l.dias==null?'—':l.dias.toFixed(1)}</td><td class="num">${l.atiempo==null?'—':Math.round(l.atiempo)+'%'}</td><td class="num">${l.gar}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:8px">Ventas</h3><dl class="kv"><dt>Con antirreflejante o filtro</dt><dd>${mes.length?Math.round(conAR/mes.length*100)+'%':'—'}</dd><dt>Avisados sin recoger &gt;30 días</dt><dd>${L.filter(t=>t.estado==='avisado'&&diff(ev(t,'avisado'),HOY)>30).length}</dd><dt>Contactos de posventa pendientes</dt><dd>${posventaLista().filter(p=>!p.hecho).length}</dd></dl></div>
   </div></div>
-  <div class="section"><h2>Trabajos en curso</h2><nav class="flow" aria-label="Trabajos por etapa">${GRUPOS.filter(g=>g[0]!=='entregado').map(([k,lab])=>{const g=L.filter(t=>t.estado===k);return `<button data-filter="${k}"><span class="fn">${g.length}</span><span class="fl">${lab}</span>${g.some(t=>sem(t)[0]==='bad')?'<span class="fd d-bad"></span>':''}</button>`}).join('')}</nav></div>`;
+  ${bajasHistorial()}<div class="section"><h2>Trabajos en curso</h2><nav class="flow" aria-label="Trabajos por etapa">${GRUPOS.filter(g=>g[0]!=='entregado').map(([k,lab])=>{const g=L.filter(t=>t.estado===k);return `<button data-filter="${k}"><span class="fn">${g.length}</span><span class="fl">${lab}</span>${g.some(t=>sem(t)[0]==='bad')?'<span class="fd d-bad"></span>':''}</button>`}).join('')}</nav></div>`;
 };
 
 VISTAS.tickets=function(){
@@ -1148,6 +1151,7 @@ function drawSheet(){
   document.getElementById('layer').innerHTML=`<div class="scrim" data-close><div class="sheet" role="dialog" aria-modal="true" aria-label="Trabajo ${esc(t.venta)}">
   <div class="sheet-head"><span class="av ${l}">${esc(iniciales(t.paciente_nombre))}</span><div style="min-width:0"><h2>${esc(t.paciente_nombre)}</h2><div class="tiny">Venta <span class="rx">${esc(t.venta)}</span>${t.id_trabajo?` · Trabajo <span class="rx">${esc(t.id_trabajo)}</span>`:''} · ${esc(t.sede)} · ${esc(fmtTel(t.telefono))}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">${ENOM[t.estado]}</span><span class="reason ${l}">${esc(w)}</span></div></div><button class="btn sm x" data-x aria-label="Cerrar">Cerrar</button></div>
   <div class="sheet-body">
+   ${bajaAbierta(t.id)?`<div class="alert bad">✕ Borrado solicitado por ${esc(bajaAbierta(t.id).solicita)}: ${esc(bajaAbierta(t.id).motivo)}. Falta la firma de Dirección antes de las ${horaCierre()}.</div>`:''}
    ${action}
    <div class="card"><h3>Avance</h3><ol class="timeline">${PASOS.map((p,i)=>{const d=ev(t,p[2]);const cls=t.estado==='garantia'?(d?'done':''):(i<idx||t.estado==='entregado'?'done':i===idx?'cur':'');return `<li class="${cls}"><span class="tdot"></span><span>${p[1]}</span><span class="when">${d?fmt(d):(p[0]==='recibido'&&t.llega?'esperado '+fmt(t.llega):'')}</span></li>`}).join('')}</ol></div>
    <div class="card"><div class="split"><h3>Graduación y medidas</h3>${t.respaldo?'<span class="pill ok">Del expediente</span>':'<span class="pill warn">Sin respaldo</span>'}</div>
@@ -1155,7 +1159,8 @@ function drawSheet(){
    <div class="card"><h3>Producto</h3><dl class="kv"><dt>Mica</dt><dd>${esc(t.tipo)} · ${esc(t.material)}</dd><dt>Tratamiento</dt><dd>${esc(t.tratamiento)}${patentada(t)?' <span class="pill">Lleva certificado</span>':''}</dd><dt>Armazón</dt><dd>${esc(t.armazon.desc||'—')}${t.armazon.sku?` <span class="tiny rx">${esc(t.armazon.sku)}</span>`:''}</dd><dt>Laboratorio</dt><dd>${esc(t.laboratorio)}</dd><dt>Asesora</dt><dd>${esc(t.asesora||'—')}</dd>${t.referido?`<dt>Referido por</dt><dd class="rx">${esc(t.referido)}</dd>`:''}</dl>
    ${mg.length?`<div class="alert warn">! Margen bajo el objetivo: ${mg.join(', ')}</div>`:''}</div>
    <div class="card"><div class="split"><h3>Pagos</h3><span class="saldo money">${saldo(t)?money(saldo(t))+' saldo':'Liquidado'}</span></div>
-   <div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th>Ticket</th></tr></thead><tbody>${t.pagos.map(p=>`<tr><td>${fmt(p.fecha)}</td><td>${esc(p.forma)}</td><td class="num">${money(p.monto)}</td><td><button class="btn sm" data-ver="${esc(p.archivo)}">${ico('eye','sm')}Ver</button> ${p.verificado?'<span class="pill ok">Verificado</span>':p.origen==='leido'?'<span class="pill">Leído</span>':'<span class="pill warn">Por verificar</span>'}</td></tr>`).join('')}<tr><td colspan="2"><b>Total del trabajo</b></td><td class="num"><b>${money(total(t))}</b></td><td></td></tr></tbody></table></div></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th>Ticket</th></tr></thead><tbody>${t.pagos.map(p=>`<tr><td>${fmt(p.fecha)}</td><td>${esc(p.forma)}</td><td class="num">${money(p.monto)}</td><td><button class="btn sm" data-ver="${esc(p.archivo)}">${ico('eye','sm')}Ver</button> ${bajaAbierta(p.id)?'<span class="pill bad">Borrado solicitado</span> ':(puede||ME.rol==='contabilidad')&&t.pagos.length>1?`<button class="btn sm danger" data-bjpago="${p.id}">Borrar</button> `:''}${p.verificado?'<span class="pill ok">Verificado</span>':p.origen==='leido'?'<span class="pill">Leído</span>':'<span class="pill warn">Por verificar</span>'}</td></tr>`).join('')}<tr><td colspan="2"><b>Total del trabajo</b></td><td class="num"><b>${money(total(t))}</b></td><td></td></tr></tbody></table></div></div>
+   ${bajaAbierta(t.id)?'':`<div class="actions"><button class="btn danger sm" data-bjtrab="${t.id}">Solicitar borrado del trabajo</button><span class="tiny">Requiere dos PIN el mismo día, antes de las ${horaCierre()}.</span></div>`}
   </div></div></div>`;
 }
 function waMsg(t,kind){
@@ -1302,6 +1307,53 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){const L=document.ge
   render();
   setInterval(async()=>{if(TOKEN&&ME&&!BUSY&&!document.querySelector('.scrim.center')&&VIEW!=='nuevo'&&VIEW!=='config'&&VIEW!=='referidos'&&!EX.form&&!EX.nuevo){try{await cargar();render();if(OPEN)drawSheet()}catch(e){}}},60000);
 })();
+
+/* ================= Borrados con doble PIN ================= */
+const bajaAbierta=id=>(DB.bajas||[]).find(b=>b.objeto_id===id&&b.estado==='abierta');
+const horaCierre=()=>toD(DB.cierre_bajas).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'});
+const ventanaAbierta=()=>new Date()<toD(DB.cierre_bajas);
+async function bajaAct(accion,data,pin){
+  if(BUSY) return null; BUSY=true; document.body.classList.add('busy');
+  try{const r=await rpc('opt_bajas_accion',{p_token:TOKEN,p_accion:accion,p_data:data,p_pin:pin});await cargar();render();if(OPEN)drawSheet();return r}
+  catch(e){toast(cleanErr(e),true);return null}
+  finally{BUSY=false;document.body.classList.remove('busy')}
+}
+function solicitarBaja(tipo,objeto_id,desc){
+  if(bajaAbierta(objeto_id)){toast('Ya hay una solicitud de borrado abierta para este registro',true);return}
+  if(!ventanaAbierta()){toast('La ventana de borrados de hoy cerró a las 18:30. Solicítelo mañana.',true);return}
+  modal(`<h3>Solicitar borrado</h3><p class="tiny">${esc(desc)}</p>
+    <div class="alert info">Necesita dos firmas el mismo día: la suya ahora y la de una persona de Dirección distinta. Si no se autoriza antes de las ${horaCierre()}, la solicitud se cierra sola y el registro se queda.</div>
+    <div class="f"><label for="bj-mot">Motivo *</label><input id="bj-mot" placeholder="Ej. venta capturada dos veces"></div>
+    <div class="actions"><button class="btn danger" data-ok>Firmar solicitud con mi PIN</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+      if(!e.target.closest('[data-ok]')) return;
+      const motivo=b.querySelector('#bj-mot').value.trim(); if(!motivo){toast('Escriba el motivo',true);return}
+      const pin=await pedirPIN('Primera firma: su PIN'); if(!pin) return; b.remove();
+      const r=await bajaAct('solicitar',{tipo,objeto_id,motivo},pin);
+      if(r) toast(`Solicitud enviada. Dirección puede autorizarla hasta las ${horaCierre()}.`);
+    });
+}
+function bajasPanel(){
+  const A=(DB.bajas||[]).filter(b=>b.estado==='abierta'); if(!A.length) return '';
+  const mins=Math.max(0,Math.round((toD(DB.cierre_bajas)-new Date())/60000));
+  const resto=mins>=60?`${Math.floor(mins/60)} h ${mins%60} min`:`${mins} min`;
+  return `<section class="lane"><div class="lane-h"><span class="tag bad">Borrados por autorizar</span><span class="tiny">Segunda firma de Dirección · se cierran a las ${horaCierre()} (faltan ${resto})</span><span class="count" style="margin-left:auto">${A.length}</span></div>
+  ${A.map(b=>{const mio=b.solicita_id===ME.id;return `<div class="task pv" style="cursor:default"><span class="av bad">${ico('alert','sm')}</span><div style="min-width:0"><div class="t1">${esc(b.descripcion)}</div><div class="t2"><span class="reason warn">Motivo: ${esc(b.motivo)}</span><span>Solicitó ${esc(b.solicita)} a las ${toD(b.solicitado).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'})}</span></div></div>
+   <div class="actions" style="justify-content:flex-end">${ME.rol==='admin'&&!mio?`<button class="btn danger sm" data-bjauto="${b.id}">Autorizar con PIN</button><button class="btn sm" data-bjrech="${b.id}">Rechazar</button>`:`<span class="pill warn">${mio?'Esperando a otra persona de Dirección':'Esperando a Dirección'}</span>`}</div></div>`}).join('')}</section>`;
+}
+function bajasHistorial(){
+  const H=(DB.bajas||[]).filter(b=>b.estado!=='abierta'); if(!H.length) return '';
+  const lab={autorizada:['bad','Borrado'],rechazada:['ok','Rechazado'],vencida:['mute','Venció sin autorizar']};
+  return `<div class="section"><h2>Borrados de los últimos 7 días</h2><div class="tbl-wrap"><table><thead><tr><th>Registro</th><th>Motivo</th><th>Solicitó</th><th>Resolvió</th><th>Estado</th></tr></thead><tbody>
+  ${H.map(b=>`<tr><td>${esc(b.descripcion)}</td><td>${esc(b.motivo)}</td><td>${esc(b.solicita)}<div class="tiny">${fmt(b.solicitado)}</div></td><td>${esc(b.autoriza||'—')}</td><td><span class="pill ${lab[b.estado][0]}">${lab[b.estado][1]}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+document.addEventListener('click',async e=>{
+  const C=s=>e.target.closest(s); let el;
+  if(el=C('[data-bjauto]')){const b=DB.bajas.find(x=>x.id===el.dataset.bjauto);const pin=await pedirPIN('Segunda firma: autorizar borrado');if(!pin)return;const r=await bajaAct('autorizar',{id:b.id},pin);if(r)toast('Borrado autorizado');return}
+  if(el=C('[data-bjrech]')){const pin=await pedirPIN('Firme el rechazo');if(!pin)return;const r=await bajaAct('rechazar',{id:el.dataset.bjrech},pin);if(r)toast('Solicitud rechazada');return}
+  if(el=C('[data-bjtrab]')){const t=DB.trabajos.find(x=>x.id===el.dataset.bjtrab);solicitarBaja('trabajo',t.id,`Trabajo · venta ${t.venta} · ${t.paciente_nombre}`);return}
+  if(el=C('[data-bjpago]')){const p=DB.trabajos.flatMap(t=>t.pagos.map(x=>({...x,t}))).find(x=>x.id===el.dataset.bjpago);solicitarBaja('pago',p.id,`Pago de ${money(p.monto)} · venta ${p.t.venta} · ${p.t.paciente_nombre}`);return}
+  if(el=C('[data-bjexam]')){const ex=DB.pacientes.flatMap(p=>p.examenes.map(x=>({...x,p}))).find(x=>x.id===el.dataset.bjexam);solicitarBaja('examen',ex.id,`Graduación del ${fmtY(ex.fecha)} · ${ex.p.nombre}`);return}
+});
 
 </script>
 </body>
