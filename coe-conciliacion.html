@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.5 · 11 oct 2026 · Cortes retroactivos desde el 01/01/2026 -->
+<!-- COE Conciliación · v3.5.1 · 13 oct 2026 · Cortes retroactivos; la app se actualiza sola si el teléfono tenía una versión vieja -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -216,7 +216,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.5 · 11 oct 2026';
+const VERSION = 'v3.5.1 · 13 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -1861,6 +1861,15 @@ S.irPago = new URLSearchParams(location.search).get('pago');
     return;
   }
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:false}});
+  // Si el teléfono guardó una versión vieja de la app, carga la nueva
+  fetch(location.pathname + '?nc=' + Date.now(), {cache:'no-store'}).then(r => r.text()).then(txt => {
+    const v = (txt.match(/const VERSION = '([^']+)'/)||[])[1];
+    if(v && v !== VERSION && !sessionStorage.getItem('recarga_' + v)){
+      sessionStorage.setItem('recarga_' + v, '1');
+      const q = new URLSearchParams(location.search); q.set('v', v.split(' ')[0]);
+      location.replace(location.pathname + '?' + q.toString());
+    }
+  }).catch(()=>{});
   if(S.token){ reiniciarInactividad(); cargar(); } else vistaLogin();
 })();
 </script>
