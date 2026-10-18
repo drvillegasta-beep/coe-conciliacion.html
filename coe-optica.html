@@ -308,6 +308,38 @@ body.busy .btn.primary{opacity:.6;pointer-events:none}
   @page{size:letter;margin:14mm}
 }
 
+
+/* ---- v5: nuevo trabajo, alertas, documentos ---- */
+.newhdr{font-size:15px;padding:10px 16px;border-radius:10px}
+.fab{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:35;display:inline-flex;align-items:center;gap:10px;padding:16px 22px 16px 18px;border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-family:var(--display);font-size:18px;font-weight:600;box-shadow:0 10px 26px -8px rgba(14,108,113,.7),0 2px 6px rgba(0,0,0,.15);cursor:pointer}
+.fab .ico{width:28px;height:28px;stroke-width:2.6}
+.fab:hover{filter:brightness(1.08)}
+.btn.big{font-size:16px;padding:14px 22px;border-radius:12px}
+.bell{position:relative;padding:8px}
+.bell .n{position:absolute;top:0;right:-2px;background:var(--warn);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.bell.hot .n{background:var(--bad)}
+.bell.hot .ico{color:var(--bad)}
+.alv{display:grid;gap:8px;margin:12px 0;max-height:60vh;overflow:auto}
+.alv-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;cursor:pointer;color:var(--ink)}
+.alv-row.bad{border-left:4px solid var(--bad)}.alv-row.warn{border-left:4px solid var(--warn)}
+.alv-row:hover{border-color:var(--accent)}
+.dlg{width:min(560px,100%)}
+.docs{display:grid;gap:8px}
+.doc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.doc>.ico{color:var(--accent)}
+@media (max-width:560px){.doc{grid-template-columns:auto minmax(0,1fr)}.doc .actions{grid-column:1/-1}}
+table.rxedit td{padding:6px}
+table.rxedit input{width:100%;min-width:56px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 4px;text-align:center;font-family:var(--mono)}
+table.mini th,table.mini td{padding:5px 8px;font-size:13px}
+.hojac{gap:8px}
+details.card summary{cursor:pointer}
+.chip .c{opacity:.7;font-variant-numeric:tabular-nums;margin-left:4px}
+@media (max-width:760px){
+  nav.tabs{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  nav.tabs button{flex:0 0 auto;min-width:68px}
+  .fab{bottom:calc(82px + env(safe-area-inset-bottom,0px));right:14px;padding:14px 18px 14px 14px;font-size:16px}
+  .newhdr{display:none}
+}
 </style>
 </head>
 <body>
@@ -318,7 +350,8 @@ body.busy .btn.primary{opacity:.6;pointer-events:none}
         <div class="logo" title="Centro Ocular Especializado">COE</div>
         <div><b>COE Óptica</b><small>Centro Ocular Especializado</small></div>
       </div>
-      <button class="btn primary sm newhdr" id="hdrNew" hidden><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nuevo trabajo</button>
+      <button class="userbtn bell" id="hdrBell" hidden aria-label="Alertas de atrasos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="n" hidden>0</span></button>
+      <button class="btn primary newhdr" id="hdrNew" hidden><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nuevo trabajo</button>
       <div class="user" id="userbox" hidden><select id="sede" aria-label="Sede"><option value="all">Todas las sedes</option><option>Tacámbaro</option><option>Morelia</option></select><span id="uname"></span><button class="userbtn" id="logout" aria-label="Cerrar sesión"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></svg>Salir</button></div>
     </div>
     <nav class="tabs" role="tablist" id="tabs"></nav>
@@ -326,10 +359,123 @@ body.busy .btn.primary{opacity:.6;pointer-events:none}
 </header>
 <main class="wrap" id="main"><div class="empty" style="padding:40px 0">Cargando…</div></main>
 <div id="layer"></div>
+<button class="fab" id="fab" hidden aria-label="Nuevo trabajo"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nuevo trabajo</span></button>
 <div id="printzone"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+/* ================= Lectura de documentos de eOptics ================= */
+/* Ticket de venta: pagos y productos. Hoja de laboratorio: graduación y medidas. */
+const LECT={};
+(function(){
+  const LABELS=['Paciente','Fecha Venta','Domicilio','Teléfono','Telefono','Proveedor Ext\\.','Fecha de entrega','Fecha de Entrega','Empresa','Caja/ Contenedor','Tipo de Lente','Tipo Lente','Tipo','Material','Color','Productos','Tel','Venta','Suc','Total Lentes','Total productos','Total','Vendedor','Fecha','ID Trabajo','Sucursal','Saldo','Pagos Anticipados','Importe','IVA','Subtotal s/ IVA','DI','A\\.Oblea','Puente'];
+  const STOP='(?=\\s{2,}|\\n|\\s+(?:'+LABELS.join('|')+')\\s*:|$)';
+  const norm=t=>String(t||'').replace(/ /g,' ').replace(/\r/g,'');
+  const one=t=>norm(t).replace(/\s*\n\s*/g,' ');
+  const val=(T,label)=>{const m=new RegExp('(?:^|[\\s])'+label+'\\s*:\\s*([^\\n]*?)'+STOP,'i').exec(T);return m?m[1].trim():''};
+  const money=s=>{const n=parseFloat(String(s||'').replace(/[$,\s]/g,''));return isNaN(n)?null:n};
+  const fecha=s=>{const m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s||'');if(!m)return '';let y=+m[3];if(y<100)y+=2000;return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`};
+  const tel=s=>{const m=/(\d{10})/.exec(String(s||'').replace(/[\s-]/g,''));return m?m[1]:''};
+  const forma=s=>/transf|spei/i.test(s)?'Transferencia':/efect/i.test(s)?'Efectivo':/tarj|cr[eé]d|d[eé]b|visa|master|amex/i.test(s)?'Tarjeta':(s||'').trim();
+  const titulo=s=>String(s||'').toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+  const tipoDe=(tipo,tipoLente)=>{const x=(tipoLente+' '+tipo).toUpperCase();if(/PROGRES|MULTIFOC/.test(x))return 'Progresivo';if(/BIFOC|FLAT/.test(x))return 'Bifocal';if(/CONTACTO/.test(x))return 'Lente de contacto';return 'Monofocal'};
+
+  /* ---- ticket de venta (comprobante de pago) ---- */
+  LECT.ticket=function(raw){
+    const T=norm(raw), O=one(raw), r={};
+    if(!/Pagos Anticipados|Cargo Cliente|Total Lentes|PAGOS/i.test(T)) return r;
+    let m=/Venta\s*:\s*-?\s*(\d{3,8})/i.exec(T); if(m) r.venta=m[1];
+    const fe=val(T,'Fecha de Entrega'); if(fe) r.fecha_entrega=fecha(fe);
+    m=/Paciente\s*:\s*([^\n]+)/i.exec(T); if(m) r.paciente=m[1].trim().replace(/\s{2,}.*/,'');
+    m=/Tel\s*:\s*([\d ,-]{10,})/i.exec(T); if(m) r.telefono=tel(m[1]);
+    const tl=val(T,'Tipo Lente'); if(tl) r.tipo_lente=tl;
+    const mat=val(T,'Material'); if(mat) r.material=mat;
+    m=/Total Lentes\s*:?\s*\$\s*([\d,]+\.\d{2})/i.exec(T); if(m) r.total_lentes=money(m[1]);
+    m=/Total productos\s*:?\s*\$\s*([\d,]+\.\d{2})/i.exec(T); if(m) r.total_productos=money(m[1]);
+    m=/(?:^|\n)\s*Total\s*:\s*\$\s*([\d,]+\.\d{2})/i.exec(T); if(m) r.total=money(m[1]);
+    m=/Pagos Anticipados\s*:?\s*\$\s*([\d,]+\.\d{2})/i.exec(T); if(m) r.pagado=money(m[1]);
+    m=/(?:^|\n)\s*Saldo\s*:?\s*\$\s*([\d,]+\.\d{2})/i.exec(T); if(m) r.saldo=money(m[1]);
+    m=/Vendedor\s*:\s*([^\n]+)/i.exec(T); if(m) r.vendedor=m[1].trim();
+    m=/Vendedor[\s\S]*?Fecha\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i.exec(T); if(m) r.fecha_venta=fecha(m[1]);
+    m=/n[uú]mero de paciente\s*(\d+)/i.exec(O); if(m) r.num_paciente=m[1];
+    // productos con precio
+    const pb=/Cantidad\s+Producto\s+Total([\s\S]*?)Total productos/i.exec(T);
+    r.productos=[];
+    if(pb){const B=one(pb[1]);const re=/(\d+)\s+(.+?)\s+\$\s*([\d,]+\.\d{2})/g;let x;while((x=re.exec(B))){r.productos.push({cant:+x[1],desc:x[2].trim(),importe:money(x[3])})}}
+    // pagos con folio
+    const pg=/\nPAGOS\s*\n([\s\S]*?)(?:Vendedor|EN DVISUAL|Acceso a clientes|$)/i.exec(T);
+    r.pagos=[];
+    if(pg){const B=one(pg[1]);const re=/(\d{3,9})\s+(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(.+?)\s+\$\s*([\d,]+\.\d{2})/g;let x;while((x=re.exec(B))){r.pagos.push({folio:x[1],fecha:fecha(x[2]),forma:forma(x[3]),forma_texto:x[3].trim(),monto:money(x[4])})}}
+    if(r.total==null&&r.total_lentes!=null) r.total=(r.total_lentes||0)+(r.total_productos||0);
+    r.tipo=tipoDe('',r.tipo_lente||'');
+    return r;
+  };
+
+  /* ---- graduación de un renglón de la hoja ---- */
+  function filaRx(s,multifocal){
+    const tk=s.trim().split(/\s+/); // [cant, esf, ...]
+    if(tk.length&&/^\d+$/.test(tk[0])&&tk.length>1&&/^[+-]?\d+\.\d{2}$/.test(tk[1])) tk.shift();
+    const out={esf:'',cil:'',eje:'',add:'',dnp:'',alt:''};
+    if(!tk.length) return out;
+    out.esf=tk.shift();
+    const signed=x=>/^[+-]\d+\.\d{2}$/.test(x||'');
+    const entero=x=>/^\d{1,3}$/.test(x||'')&&+x<=180;
+    // cilindro: negativo con eje; o positivo con eje cuando no es multifocal o hay dos signados
+    const nSigned=tk.filter(signed).length;
+    if(signed(tk[0])&&entero(tk[1])&&(tk[0][0]==='-'||!multifocal||nSigned>=2)){out.cil=tk.shift();out.eje=String(+tk.shift()).padStart(3,'0')}
+    if(signed(tk[0])&&tk[0][0]==='+'){out.add=tk.shift()}
+    const nums=tk.filter(x=>/^\d+(\.\d+)?$/.test(x));
+    if(nums[0]) out.dnp=nums[0]; if(nums[1]) out.alt=nums[1];
+    if(out.esf==='0.00') out.esf='0.00';
+    return out;
+  }
+  /* ---- hoja de laboratorio ---- */
+  LECT.hoja=function(raw){
+    const T=norm(raw), r={};
+    if(!/Hoja de Laboratorio|Nasopu|M\.Monoculares/i.test(T)) return r;
+    let m=/ID Trabajo\s+(\d+)/i.exec(T); if(m) r.id_trabajo=m[1];
+    m=/(?:^|\s)Venta\s+(\d{3,8})/i.exec(T); if(m) r.venta=m[1];
+    const p=val(T,'Paciente'); if(p) r.paciente=p;
+    const fv=val(T,'Fecha Venta'); if(fv) r.fecha_venta=fecha(fv);
+    const fe=val(T,'Fecha de entrega'); if(fe) r.fecha_entrega=fecha(fe);
+    m=/Tel[eé]fono\s*:\s*([\d ,]+)/i.exec(T); if(m){const ts=m[1].split(',').map(tel).filter(Boolean);r.telefono=ts[0]||'';r.telefonos=ts}
+    const tipo=val(T,'Tipo'), tl=val(T,'Tipo de Lente'); r.tipo_texto=tipo; r.tipo_lente=tl;
+    m=/Material\s*:\s*([^\n]*?)(?=\s{2,}Color|\n|$)(?:\n(?!\s*(?:Color|Productos|Cantidad|LENTES)\b)([^\n:]+)\n)?/i.exec(T);
+    if(m) r.material=(m[1]+' '+(m[2]||'')).replace(/\s+/g,' ').trim();
+    r.tipo=tipoDe(tipo,tl);
+    const multi=r.tipo==='Progresivo'||r.tipo==='Bifocal';
+    m=/Der\.\s+([^\n]+)/i.exec(T); if(m) r.od=filaRx(m[1],multi);
+    m=/Izq\.\s+([^\n]+)/i.exec(T); if(m) r.oi=filaRx(m[1],multi);
+    m=/DI\s*:\s*([\d.]+)\s*mm/i.exec(T); if(m) r.di=m[1];
+    const pb=/Cantidad\s+Producto\s*\n([\s\S]*?)C\s*O\s*M\s*E\s*N\s*T/i.exec(T);
+    r.productos=[];
+    if(pb){const B=one(pb[1]);const re=/(\d+)\s+([A-Z0-9]{4,20})\s+-\s+(.+?)(?=\s+\d+\s+[A-Z0-9]{4,20}\s+-\s+|$)/g;let x;while((x=re.exec(B))){r.productos.push({cant:+x[1],codigo:x[2],desc:x[3].trim()})}}
+    const arm=r.productos.find(x=>!/ESTUCHE|PA[ÑN]O|L[IÍ]QUIDO|SOLUCI/i.test(x.desc));
+    if(arm){r.armazon_codigo=arm.codigo;r.armazon_desc=titulo(arm.desc)}
+    return r;
+  };
+  LECT.titulo=titulo;
+})();
+
+/* texto de un PDF (pdf.js) o de una foto (OCR con Tesseract, se carga solo si hace falta) */
+async function textoDe(file,onProg){
+  if(file.type==='application/pdf') return {texto:await textoPDF(file),origen:'pdf'};
+  if(!file.type.startsWith('image/')) return {texto:'',origen:'otro'};
+  try{
+    if(!window.Tesseract){
+      await new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=ok;s.onerror=ko;document.head.appendChild(s)});
+    }
+    const r=await Tesseract.recognize(await comprimirOCR(file),'spa',{logger:m=>{if(onProg&&m.status==='recognizing text')onProg(Math.round(m.progress*100))}});
+    return {texto:(r.data.text||'').replace(/ {1}(?=[A-ZÁÉÍÓÚ][a-záéíóú]+\s*:)/g,'   '),origen:'foto'};
+  }catch(e){return {texto:'',origen:'foto'}}
+}
+async function comprimirOCR(file){
+  const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=URL.createObjectURL(file)});
+  const k=Math.min(1,2400/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+  const g=c.getContext('2d');g.filter='grayscale(1) contrast(1.4)';g.drawImage(img,0,0,c.width,c.height);
+  return c;
+}
+
 /* ================= COE Óptica · núcleo ================= */
 const SB_URL='https://ckjkdenwqicdjvodflba.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNramtkZW53cWljZGp2b2RmbGJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MDIzMzgsImV4cCI6MjA4OTE3ODMzOH0.7pd1oAevIWY81e0DTSMBFtzSECfQNa_mOqstG_UEj-0';
@@ -410,21 +556,6 @@ async function textoPDF(file){
     for(let i=1;i<=Math.min(pdf.numPages,3);i++){const p=await pdf.getPage(i);const tc=await p.getTextContent();out+=tc.items.map(x=>x.str+(x.hasEOL?'\n':' ')).join('')+'\n'}
     return out}catch(e){return ''}
 }
-function leerTicket(tx){
-  const r={}; if(!tx) return r; const T=tx.replace(/ /g,' ');
-  const m=(re,i=1)=>{const x=re.exec(T);return x?x[i].trim():''};
-  r.venta=m(/venta\s*(?:no\.?|n[uú]m(?:ero)?\.?|#|:)?\s*:?\s*(\d{4,8})/i);
-  r.id_trabajo=m(/id\s*(?:de\s*)?trabajo\s*(?:no\.?|#|:)?\s*:?\s*(\d{3,8})/i);
-  r.total=m(/total\s*(?:a\s*pagar|venta|neto)?\s*:?\s*\$?\s*([\d,]+\.\d{2})/i);
-  r.anticipo=m(/(?:anticipo|abono|a\s*cuenta|su\s*pago|pago\s*recibido|importe\s*pagado|pagado)\s*:?\s*\$?\s*([\d,]+\.\d{2})/i);
-  r.paciente=m(/(?:paciente|cliente)\s*:?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ.]+(?:\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ.]+){1,4})/);
-  r.telefono=m(/(?:tel[eé]fono|tel\.?|cel(?:ular)?)\s*:?\s*(\d{10})/i);
-  const f=m(/\b(efectivo|tarjeta|transferencia|cr[eé]dito|d[eé]bito)\b/i); r.forma=f?(/transf/i.test(f)?'Transferencia':/efect/i.test(f)?'Efectivo':'Tarjeta'):'';
-  Object.keys(r).forEach(k=>{if(!r[k]) delete r[k]});
-  if(r.total) r.total=num(r.total); if(r.anticipo) r.anticipo=num(r.anticipo);
-  return r;
-}
-
 /* ---------- reglas de negocio ---------- */
 const ESTADOS=[['capturado','Capturado'],['enviado','En laboratorio'],['recibido','Recibido · falta revisión'],['listo','Listo para avisar'],['avisado','Avisado · por recoger'],['entregado','Entregado'],['garantia','Garantía']];
 const ENOM=Object.fromEntries(ESTADOS);
@@ -590,32 +721,77 @@ function mensajeWA(texto,tel,onSent){
     });
 }
 /* pago con ticket: el monto se lee del PDF; si es foto se captura y queda por verificar */
+/* pago con el ticket actualizado de eOptics: se registran solo los pagos nuevos (por folio) */
+async function docsAct(accion,data){
+  if(BUSY) return null; BUSY=true; document.body.classList.add('busy');
+  try{const r=await rpc('opt_docs',{p_token:TOKEN,p_accion:accion,p_data:data});await cargar();render();if(OPEN)drawSheet();return r}
+  catch(e){toast(cleanErr(e),true);return null}
+  finally{BUSY=false;document.body.classList.remove('busy')}
+}
 function modalPago(t,titulo,sugerido){
-  let file=null, leido=null;
-  const box=modal(`<h3>${esc(titulo)}</h3><p class="tiny">Suba el ticket de eOptics. Si es PDF, el monto se lee del ticket y no se puede editar. Si es foto, Contabilidad lo verifica.</p>
+  let file=null, L=null, origen='';
+  const ya=new Set(t.pagos.map(p=>p.folio).filter(Boolean));
+  const box=modal(`<h3>${esc(titulo)}</h3><p class="tiny">Suba el ticket de venta de eOptics actualizado (el que trae la lista de PAGOS). Del PDF se registran solo los pagos nuevos, con su folio y monto; nada se escribe a mano.</p>
     <label class="drop" style="padding:18px"><span class="ic">${ico('upload')}</span><input type="file" accept="image/*,application/pdf" id="pg-file"><span class="tiny">PDF o foto del ticket</span></label>
     <div id="pg-out" class="form"></div>
-    <div class="actions"><button class="btn primary" data-ok disabled>Registrar pago</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+    <div class="actions"><button class="btn primary" data-ok disabled>Registrar pagos</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
       if(!e.target.closest('[data-ok]')) return;
-      const monto=leido&&leido.anticipo?leido.anticipo:num(b.querySelector('#pg-monto')?.value);
-      const forma=leido&&leido.forma?leido.forma:b.querySelector('#pg-forma')?.value||'Efectivo';
-      if(monto<=0){toast('Escriba el monto del ticket',true);return}
-      if(monto>saldo(t)+0.01){toast(`El pago es mayor al saldo (${money(saldo(t))})`,true);return}
       const btn=b.querySelector('[data-ok]');btn.disabled=true;btn.textContent='Subiendo ticket…';
-      try{const path=await subirArchivo(file);b.remove();
-        const r=await act('pago_registrar',{trabajo_id:t.id,monto,forma,archivo:path,leido:!!(leido&&leido.anticipo)});
-        if(r) toast('Pago registrado con su ticket');
-      }catch(err){btn.disabled=false;btn.textContent='Registrar pago';toast(cleanErr(err),true)}
+      try{
+        const path=await subirArchivo(file);
+        if(L&&L.venta&&origen==='pdf'){
+          const nuevos=(L.pagos||[]).filter(p=>!ya.has(p.folio));
+          b.remove(); const r=await docsAct('ticket',{id:t.id,archivo:path,leido:L,pagos:nuevos});
+          if(r) toast(r.nuevos?`${r.nuevos} pago${r.nuevos>1?'s':''} registrado${r.nuevos>1?'s':''}`:'Ticket guardado; no había pagos nuevos');
+        } else {
+          const monto=num(b.querySelector('#pg-monto')?.value), forma=b.querySelector('#pg-forma')?.value||'Efectivo';
+          if(monto<=0){btn.disabled=false;btn.textContent='Registrar pagos';toast('Escriba el monto del ticket',true);return}
+          if(monto>saldo(t)+0.01){btn.disabled=false;btn.textContent='Registrar pagos';toast(`El pago es mayor al saldo (${money(saldo(t))})`,true);return}
+          b.remove(); const r=await act('pago_registrar',{trabajo_id:t.id,monto,forma,archivo:path,leido:false}); if(r) toast('Pago registrado; queda por verificar');
+        }
+      }catch(err){btn.disabled=false;btn.textContent='Registrar pagos';toast(cleanErr(err),true)}
     });
   box.querySelector('#pg-file').addEventListener('change',async e=>{
     file=e.target.files[0]; if(!file) return; const out=box.querySelector('#pg-out'); out.innerHTML='<div class="alert info">Leyendo ticket…</div>';
-    leido=leerTicket(await textoPDF(file));
-    if(leido.venta&&leido.venta!==t.venta) out.innerHTML=`<div class="alert warn">! El ticket es de la venta ${esc(leido.venta)} y este trabajo es la ${esc(t.venta)}. Revise que sea el ticket correcto.</div>`; else out.innerHTML='';
-    if(leido.anticipo) out.innerHTML+=`<div class="lks" style="grid-template-columns:1fr">${lk('Monto leído del ticket',money(leido.anticipo))}${lk('Forma de pago',leido.forma||'—')}</div>`;
-    else out.innerHTML+=`<div class="alert warn">! No se pudo leer el monto${file.type==='application/pdf'?'':' de una foto'}. Escríbalo tal como aparece; queda pendiente de verificar por Contabilidad.</div>
-      <div class="fields"><div class="f"><label for="pg-monto">Monto del ticket</label><input id="pg-monto" inputmode="decimal" value="${sugerido?Math.round(sugerido):''}"></div>
+    const r=await textoDe(file,p=>{out.innerHTML=`<div class="alert info">Reconociendo texto de la foto ${p}%…</div>`}); origen=r.origen; L=LECT.ticket(r.texto);
+    const ok=box.querySelector('[data-ok]');
+    if(!L.venta&&LECT.hoja(r.texto).od){out.innerHTML='<div class="alert bad">✕ Este archivo es la hoja de laboratorio. Suba el ticket de venta, el que trae los pagos.</div>';ok.disabled=true;return}
+    if(L.venta&&L.venta!==t.venta){out.innerHTML=`<div class="alert bad">✕ El ticket es de la venta ${esc(L.venta)} y este trabajo es la venta ${esc(t.venta)}.</div>`;ok.disabled=true;return}
+    if(origen==='pdf'&&L.venta){
+      const nuevos=(L.pagos||[]).filter(p=>!ya.has(p.folio));
+      out.innerHTML=`<div class="tbl-wrap"><table><thead><tr><th>Folio</th><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th></th></tr></thead><tbody>${(L.pagos||[]).map(p=>`<tr><td class="rx">${esc(p.folio)}</td><td>${fmtY(p.fecha)}</td><td>${esc(p.forma)}</td><td class="num">${money(p.monto)}</td><td>${ya.has(p.folio)?'<span class="pill mute">Ya registrado</span>':'<span class="pill ok">Nuevo</span>'}</td></tr>`).join('')}</tbody></table></div>
+        <div class="lks" style="grid-template-columns:1fr">${lk('Total de la venta',money(L.total))}${lk('Pagado según eOptics',money(L.pagado))}${lk('Saldo según eOptics',money(L.saldo))}</div>
+        ${nuevos.length?'':'<div class="alert info">Este ticket no trae pagos nuevos.</div>'}`;
+      ok.disabled=false; return;
+    }
+    out.innerHTML=`<div class="alert warn">! ${origen==='foto'?'De una foto':'De este archivo'} no se pueden leer los pagos con seguridad. Escriba el monto tal como aparece; queda pendiente de verificar por Contabilidad.</div>
+      <div class="fields"><div class="f"><label for="pg-monto">Monto del pago</label><input id="pg-monto" inputmode="decimal" value="${sugerido?Math.round(sugerido):''}"></div>
       <div class="f"><label for="pg-forma">Forma de pago</label><select id="pg-forma"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div></div>`;
-    box.querySelector('[data-ok]').disabled=false;
+    ok.disabled=false;
+  });
+}
+/* subir o reemplazar la hoja de laboratorio de un trabajo */
+function modalHoja(t){
+  let file=null,L=null,origen='';
+  const box=modal(`<h3>Hoja de laboratorio · venta ${esc(t.venta)}</h3><p class="tiny">PDF o foto de la hoja de laboratorio de eOptics. Se guarda en el trabajo y en el expediente del paciente.</p>
+    <label class="drop" style="padding:18px"><span class="ic">${ico('upload')}</span><input type="file" accept="image/*,application/pdf" id="hj-file"><span class="tiny">PDF o foto de la hoja</span></label>
+    <div id="hj-out" class="form"></div><div class="actions"><button class="btn primary" data-ok disabled>Guardar hoja</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+      if(!e.target.closest('[data-ok]')) return;
+      const btn=b.querySelector('[data-ok]');btn.disabled=true;btn.textContent='Subiendo…';
+      try{const path=await subirArchivo(file);b.remove();
+        const data={id:t.id,archivo:path,leida:L||{}};
+        if(origen==='pdf'&&L&&L.od) data.rx={od:[L.od.esf,L.od.cil,L.od.eje,L.od.add,L.od.dnp,L.od.alt],oi:[L.oi.esf,L.oi.cil,L.oi.eje,L.oi.add,L.oi.dnp,L.oi.alt]};
+        const r=await docsAct('hoja',data); if(r) toast('Hoja de laboratorio guardada');
+      }catch(err){btn.disabled=false;btn.textContent='Guardar hoja';toast(cleanErr(err),true)}
+    });
+  box.querySelector('#hj-file').addEventListener('change',async e=>{
+    file=e.target.files[0]; if(!file) return; const out=box.querySelector('#hj-out'); out.innerHTML='<div class="alert info">Leyendo hoja…</div>';
+    const r=await textoDe(file,p=>{out.innerHTML=`<div class="alert info">Reconociendo texto de la foto ${p}%…</div>`}); origen=r.origen; L=LECT.hoja(r.texto);
+    const ok=box.querySelector('[data-ok]');
+    if(!L.od&&LECT.ticket(r.texto).venta){out.innerHTML='<div class="alert bad">✕ Este archivo es el ticket de venta. Suba la hoja de laboratorio.</div>';ok.disabled=true;return}
+    if(L.venta&&L.venta!==t.venta){out.innerHTML=`<div class="alert bad">✕ La hoja es de la venta ${esc(L.venta)} y este trabajo es la venta ${esc(t.venta)}.</div>`;ok.disabled=true;return}
+    out.innerHTML=L.od?`<div class="alert ok">✓ Trabajo ${esc(L.id_trabajo||'')} · OD ${esc(L.od.esf)} ${esc(L.od.cil)} ${L.od.eje?'× '+esc(L.od.eje):''} ${L.od.add?'add '+esc(L.od.add):''} · OI ${esc(L.oi.esf)} ${esc(L.oi.cil)} ${L.oi.eje?'× '+esc(L.oi.eje):''} ${L.oi.add?'add '+esc(L.oi.add):''}</div>${origen==='pdf'?'<p class="tiny">La graduación del trabajo se actualiza con la de esta hoja.</p>':'<p class="tiny">Es foto: se guarda como respaldo sin cambiar la graduación capturada.</p>'}`:'<div class="alert warn">! No se pudo leer la graduación; se guarda como respaldo.</div>';
+    ok.disabled=false;
   });
 }
 
@@ -646,13 +822,13 @@ document.getElementById('main').addEventListener('submit',async e=>{
   if(e.target.id==='flogin'){
     const u=document.getElementById('lg-u').value.trim(), p=document.getElementById('lg-p').value; const err=document.getElementById('lg-err');
     err.innerHTML='<div class="alert info">Entrando…</div>';
-    try{const r=await rpc('opt_login',{p_usuario:u,p_pass:p});if(!r||r.error||!r.token) throw new Error((r&&r.error)||'Usuario o contraseña incorrectos.');TOKEN=r.token;store.set('coeopt-token',TOKEN);await cargar();VIEW=store.get('coeopt-tab')||'';render()}
+    try{const r=await rpc('opt_login',{p_usuario:u,p_pass:p});if(!r||r.error||!r.token) throw new Error((r&&r.error)||'Usuario o contraseña incorrectos.');TOKEN=r.token;store.set('coeopt-token',TOKEN);await cargar();VIEW=store.get('coeopt-tab')||'';render();setTimeout(()=>mostrarAlertas(),500)}
     catch(x){err.innerHTML=`<div class="alert bad">✕ ${esc(cleanErr(x))}</div>`}
   }
   if(e.target.id==='fcambio'){
     const g=id=>document.getElementById(id).value; const err=document.getElementById('cb-err');
     if(g('cb-n')!==g('cb-c')){err.innerHTML='<div class="alert bad">✕ Las contraseñas nuevas no coinciden.</div>';return}
-    try{await rpc('opt_cambiar_acceso',{p_token:TOKEN,p_actual:g('cb-a'),p_nueva:g('cb-n'),p_pin:g('cb-p')});await cargar();toast('Listo. Ya puede trabajar.');render()}
+    try{await rpc('opt_cambiar_acceso',{p_token:TOKEN,p_actual:g('cb-a'),p_nueva:g('cb-n'),p_pin:g('cb-p')});await cargar();toast('Listo. Ya puede trabajar.');render();setTimeout(()=>mostrarAlertas(),500)}
     catch(x){err.innerHTML=`<div class="alert bad">✕ ${esc(cleanErr(x))}</div>`}
   }
 });
@@ -699,130 +875,6 @@ VISTAS.trabajos=function(){
   <div class="lane" style="margin-top:12px">${L.length?L.map(taskHTML).join(''):'<div class="empty">No hay trabajos en esta etapa.</div>'}</div>`;
 };
 
-/* ---------- Nuevo trabajo ---------- */
-let NEW=null;
-function resetNew(){NEW={step:1,file:null,leyendo:false,leido:{},f:{venta:'',id_trabajo:'',fecha_venta:iso(HOY),paciente_nombre:'',telefono:'',total:'',anticipo:'',forma:'Efectivo',tipo:'Monofocal',material:'CR39',tratamiento:'AR',arm_desc:'',arm_sku:'',arm_marca:'',arm_propio:false,precio_arm:'',precio_mica:'',costo_mica:'',costo_arm:'',lc_dias:''},paciente_id:'',dip:{od:'',oi:''},alt:{od:'',oi:''},lab:'',gar:false,ref:'',refOk:true}}
-resetNew();
-const TIPOS=['Monofocal','Bifocal','Progresivo','Lente de contacto'];
-const MATS=['CR39','Policarbonato','Alto índice 1.67','Alto índice 1.74','Alta Force','Trivex','Cristal'];
-const TRATS=['Blanca','AR','Fotocromático','Fotocromático AR','Blue Free','Blue-ray','Polarizado','Panoramic Revolution 360','Panoramic Revolution 360 FOTO','Thin & Lite'];
-VISTAS.nuevo=function(){
-  const s=NEW.step;
-  return `<div class="split"><div><h1>Nuevo trabajo</h1><p class="sub">Todo empieza con el ticket de venta de eOptics.</p></div><button class="btn sm" data-go="${ME.rol==='ventas'?'tablero':'resumen'}">Cancelar</button></div>
-  <ol class="stepper">${['Ticket de venta','Paciente y medidas','Laboratorio y firma'].map((x,i)=>`<li class="${i+1<s?'done':i+1===s?'cur':''}"><span>${i+1<s?'✓':i+1}</span>${x}</li>`).join('')}</ol>
-  <div id="wiz" class="form" style="margin-top:14px">${[w1,w2,w3][s-1]()}</div>`;
-};
-function campo(k,lab,attrs=''){const lei=NEW.leido[k]!=null;const v=NEW.f[k];return `<div class="f"><label for="nf-${k}">${lab}${lei?' · <span style="color:var(--ok)">leído del ticket</span>':''}</label><input id="nf-${k}" data-nf="${k}" value="${esc(v)}" ${lei?'readonly class="ro"':''} ${attrs}></div>`}
-function sel(k,lab,opts){return `<div class="f"><label for="nf-${k}">${lab}</label><select id="nf-${k}" data-nf="${k}">${opts.map(o=>`<option ${NEW.f[k]===o?'selected':''}>${o}</option>`).join('')}</select></div>`}
-function w1(){
-  if(!NEW.file) return `<label class="drop" for="tk-new"><span class="ic">${ico('upload')}</span><b>Subir ticket de venta</b><span class="tiny">PDF de eOptics o foto del ticket. Del PDF se leen la venta, el paciente, el total y el anticipo, y esos datos quedan bloqueados.</span><input type="file" id="tk-new" accept="image/*,application/pdf"></label>`;
-  if(NEW.leyendo) return `<div class="card"><div class="alert info">Leyendo ${esc(NEW.file.name)}…</div></div>`;
-  const nl=Object.keys(NEW.leido).length; const f=NEW.f;
-  const tot=num(f.total), ant=num(f.anticipo), pct=tot?ant/tot*100:0, dup=f.venta&&DB.trabajos.some(t=>t.venta===f.venta);
-  const suma=num(f.precio_arm)+num(f.precio_mica);
-  return `<div class="card"><div class="split"><h3>Datos del ticket</h3><span class="pill ${nl?'ok':'warn'}">${nl?nl+' datos leídos del PDF':'Captura manual · por verificar'}</span></div>
-  <div class="tiny">${esc(NEW.file.name)} · <button class="linkbtn" data-tkreset>Cambiar archivo</button></div>
-  ${nl?'':'<div class="alert warn">! No se pudieron leer datos del archivo. Escríbalos tal como aparecen en el ticket; al guardar ya no se pueden cambiar y Contabilidad los verifica contra el archivo.</div>'}
-  ${dup?`<div class="alert bad">✕ La venta ${esc(f.venta)} ya está registrada. Un ticket no se puede usar dos veces.</div>`:''}
-  <div class="fields">${campo('venta','No. de venta *','inputmode="numeric"')}${campo('id_trabajo','ID de trabajo','inputmode="numeric"')}${campo('fecha_venta','Fecha de venta','type="date"')}${campo('telefono','WhatsApp del paciente *','inputmode="tel"')}</div>
-  <div class="fields"><div class="f w2"><label for="nf-paciente_nombre">Paciente *${NEW.leido.paciente_nombre?' · <span style="color:var(--ok)">leído del ticket</span>':''}</label><input id="nf-paciente_nombre" data-nf="paciente_nombre" value="${esc(f.paciente_nombre)}" ${NEW.leido.paciente_nombre?'readonly class="ro"':''}></div>${campo('total','Total de la venta *','inputmode="decimal"')}${campo('anticipo','Anticipo pagado *','inputmode="decimal"')}</div>
-  <div class="fields">${NEW.leido.forma?campo('forma','Forma de pago'):sel('forma','Forma de pago',['Efectivo','Tarjeta','Transferencia'])}</div>
-  </div>
-  <div class="card"><h3>Productos de la venta</h3>
-  <div class="fields">${sel('tipo','Tipo',TIPOS)}${sel('material','Material',MATS)}<div class="f w2"><label for="nf-tratamiento">Tratamiento</label><select id="nf-tratamiento" data-nf="tratamiento">${TRATS.map(o=>`<option ${f.tratamiento===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
-  <div class="fields"><div class="f w2"><label for="nf-arm_desc">Armazón (marca, modelo, color, medidas)</label><input id="nf-arm_desc" data-nf="arm_desc" value="${esc(f.arm_desc)}" placeholder="Marcolin MA5021 carey 53□17" ${f.arm_propio?'disabled':''}></div>${campo('arm_sku','Código del armazón')}<div class="f"><label class="switch" style="margin-top:22px"><input type="checkbox" id="nf-arm_propio" ${f.arm_propio?'checked':''}> Armazón del paciente</label></div></div>
-  <div class="fields">${campo('precio_arm','Precio armazón','inputmode="decimal"')}${campo('precio_mica',f.tipo==='Lente de contacto'?'Precio lentes de contacto':'Precio micas','inputmode="decimal"')}${campo('costo_mica','Costo laboratorio (opcional)','inputmode="decimal"')}${f.tipo==='Lente de contacto'?campo('lc_dias','Duración del paquete (días)','inputmode="numeric"'):campo('costo_arm','Costo armazón (opcional)','inputmode="decimal"')}</div>
-  <div id="w1-chk" class="form"></div>
-  </div>
-  <div class="actions"><button class="btn primary" id="w1-next" data-wiz="2">Continuar</button></div>`;
-}
-function w1Check(){
-  const f=NEW.f, box=document.getElementById('w1-chk'); if(!box) return true;
-  const errs=[],warns=[];
-  if(!/^\d{3,}$/.test(f.venta)) errs.push('Falta el número de venta de eOptics.');
-  else if(DB.trabajos.some(t=>t.venta===f.venta)) errs.push('Esa venta ya está registrada.');
-  if(!f.paciente_nombre.trim()) errs.push('Falta el nombre del paciente.');
-  if(!/^\d{10}$/.test(String(f.telefono).replace(/\D/g,''))) errs.push('El WhatsApp debe tener 10 dígitos.');
-  const tot=num(f.total), ant=num(f.anticipo);
-  if(tot<=0) errs.push('Falta el total de la venta.');
-  if(ant<=0) errs.push('Falta el anticipo pagado.');
-  if(ant>tot) errs.push('El anticipo no puede ser mayor al total.');
-  const suma=num(f.precio_arm)+num(f.precio_mica);
-  if(tot>0&&suma>0&&Math.abs(suma-tot)>1) warns.push(`Armazón + micas suman ${money(suma)} y el total es ${money(tot)}. Revise los importes (descuento de consulta u otros productos).`);
-  if(tot>0&&ant>0&&ant/tot*100<CFG.anticipo) warns.push(`Anticipo de ${Math.round(ant/tot*100)}%: se guarda, pero no entra al pedido hasta completar el ${CFG.anticipo}%.`);
-  const pm=num(f.precio_mica), cm=num(f.costo_mica); if(cm&&pm/cm<CFG.factor.mica) warns.push(`Margen de micas ×${(pm/cm).toFixed(2)}, debajo del factor ${CFG.factor.mica}.`);
-  box.innerHTML=errs.map(e=>`<div class="alert bad">✕ ${esc(e)}</div>`).join('')+warns.map(w=>`<div class="alert warn">! ${esc(w)}</div>`).join('');
-  const b=document.getElementById('w1-next'); if(b) b.disabled=!!errs.length;
-  return !errs.length;
-}
-function pacienteDe(nombre){const n=String(nombre||'').trim().toLowerCase();return DB.pacientes.find(p=>p.nombre.trim().toLowerCase()===n)}
-function w2(){
-  const f=NEW.f;
-  let p=NEW.paciente_id?DB.pacientes.find(x=>x.id===NEW.paciente_id):pacienteDe(f.paciente_nombre);
-  if(p) NEW.paciente_id=p.id;
-  if(!p){
-    const parecidos=DB.pacientes.filter(x=>x.nombre.toLowerCase().includes(f.paciente_nombre.split(' ')[0].toLowerCase())).slice(0,6);
-    return `<div class="card"><div class="alert warn">! ${esc(f.paciente_nombre)} no tiene expediente refractivo. Capture su graduación, agudeza y capacidad visual.</div>
-    ${parecidos.length?`<p class="tiny">¿Es alguno de estos pacientes?</p><div class="chips">${parecidos.map(x=>`<button class="chip" data-pickpac="${x.id}">${esc(x.nombre)} · ${x.expediente}</button>`).join('')}</div>`:''}
-    <div class="actions"><button class="btn primary" data-goexpnew>Crear expediente</button><button class="btn" data-wiz="1">Atrás</button></div></div>`;
-  }
-  const ex=p.examenes[0];
-  if(!ex) return `<div class="card"><div class="alert warn">! ${esc(p.nombre)} tiene expediente pero sin graduación.</div><div class="actions"><button class="btn primary" data-expadd="${p.id}">Capturar graduación</button><button class="btn" data-wiz="1">Atrás</button></div></div>`;
-  const lc=f.tipo==='Lente de contacto', need=f.tipo==='Bifocal'||f.tipo==='Progresivo';
-  const vencida=diff(ex.fecha,HOY)>CFG.revision*30.5;
-  return `${vencida?`<div class="alert warn">! La graduación es del ${fmtY(ex.fecha)}: tiene más de ${CFG.revision} meses. Se recomienda graduar de nuevo.</div>`:''}${expResumen(p,ex,true)}
-  ${lc?'':`<div class="card"><h3>Medidas de montaje</h3><p class="tiny">Se toman en mostrador con el armazón elegido.${need?` En ${f.tipo.toLowerCase()} la altura es obligatoria.`:''}</p>
-  <div class="rxgrid" style="grid-template-columns:40px repeat(2,minmax(0,1fr));max-width:420px"><span></span><span class="h">DIP (mm)</span><span class="h">Altura (mm)</span>
-  ${['od','oi'].map(e=>`<span class="eye">${e.toUpperCase()}</span><input id="m-dip-${e}" value="${esc(NEW.dip[e])}" inputmode="decimal" aria-label="DIP ${e}"><input id="m-alt-${e}" value="${esc(NEW.alt[e])}" inputmode="decimal" aria-label="Altura ${e}">`).join('')}</div>
-  <div id="m-hint" class="tiny"></div></div>`}
-  <div class="actions"><button class="btn primary" id="wiz-next" data-wiz="3">Continuar</button><button class="btn" data-wiz="1">Atrás</button></div>`;
-}
-function w3(){
-  const f=NEW.f; const sug=/Policarbonato|1\.67|1\.74|FOTO|Fotocrom|Trivex/i.test(f.material+' '+f.tratamiento)||f.tipo==='Lente de contacto'?'Health Vision':'Sra. Angy'; if(!NEW.lab) NEW.lab=sug;
-  return `<div class="card"><h3>Laboratorio</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" aria-pressed="${NEW.lab===l.nombre}" data-lab="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}</div><p class="tiny">Sugerido por el material: ${sug}.</p></div>
-  ${CFG.ref&&CFG.ref.activo?`<div class="card"><h3>Código de referido</h3><div class="f" style="max-width:320px"><input id="w-ref" placeholder="COE-4001 (opcional)" value="${esc(NEW.ref)}" aria-label="Código de referido"><span class="hint" id="w-refh"></span></div></div>`:''}
-  <div class="card"><h3>Políticas de garantía</h3><p class="tiny">Léalas al paciente; firma de conformidad en la hoja impresa o en pantalla.</p><label class="switch"><input type="checkbox" id="w-gar" ${NEW.gar?'checked':''}> El paciente firmó las políticas de garantía</label></div>
-  <div class="card"><h3>Resumen</h3><div class="lks">${lk('Venta',f.venta)}${lk('Paciente',f.paciente_nombre)}${lk('Trabajo',`${f.tipo} · ${f.material} · ${f.tratamiento}`)}${lk('Total',money(f.total))}${lk('Anticipo',money(f.anticipo))}${lk('Saldo',money(num(f.total)-num(f.anticipo)))}</div></div>
-  <div class="actions"><button class="btn primary" id="wiz-save" data-wsave>Guardar trabajo</button><button class="btn" data-wiz="2">Atrás</button></div>`;
-}
-function wizCheck(){
-  if(!document.getElementById('wiz')) return;
-  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
-  if(NEW.step===1){document.querySelectorAll('[data-nf]').forEach(el=>{NEW.f[el.dataset.nf]=el.value.trim()});const pr=document.getElementById('nf-arm_propio');if(pr)NEW.f.arm_propio=pr.checked;w1Check()}
-  if(NEW.step===2&&document.getElementById('wiz-next')){
-    const hint=document.getElementById('m-hint');
-    if(hint){['od','oi'].forEach(e=>{NEW.dip[e]=val('m-dip-'+e);NEW.alt[e]=val('m-alt-'+e)});
-      const need=NEW.f.tipo==='Bifocal'||NEW.f.tipo==='Progresivo'; const falta=[];
-      ['od','oi'].forEach(e=>{if(!NEW.dip[e])falta.push('DIP '+e.toUpperCase());if(need&&!NEW.alt[e])falta.push('altura '+e.toUpperCase())});
-      document.getElementById('wiz-next').disabled=!!falta.length; hint.textContent=falta.length?'Falta: '+falta.join(', ')+'.':'Medidas completas.';}
-  }
-  if(NEW.step===3&&document.getElementById('w-gar')){
-    NEW.gar=document.getElementById('w-gar').checked; NEW.ref=val('w-ref').toUpperCase(); NEW.refOk=true;
-    const h=document.getElementById('w-refh');
-    if(h){ if(NEW.ref){const r=DB.referidos.find(x=>x.codigo===NEW.ref);
-        if(!r){h.textContent='Código no encontrado.';NEW.refOk=false}
-        else if(r.paciente_nombre.toLowerCase()===NEW.f.paciente_nombre.toLowerCase()||(r.telefono&&r.telefono.replace(/\D/g,'')===NEW.f.telefono.replace(/\D/g,''))){h.textContent='No puede usar su propio código.';NEW.refOk=false}
-        else if(num(NEW.f.total)<CFG.ref.minCompra){h.textContent=`Aplica en compras desde ${money(CFG.ref.minCompra)}.`;NEW.refOk=false}
-        else h.textContent=`Recomendado por ${r.paciente_nombre} · ${refBenef()}`;
-      } else h.textContent='';}
-    document.getElementById('wiz-save').disabled=!(NEW.gar&&NEW.refOk);
-  }
-}
-async function wizSave(){
-  const f=NEW.f, p=DB.pacientes.find(x=>x.id===NEW.paciente_id), ex=p&&p.examenes[0];
-  const btn=document.getElementById('wiz-save'); btn.disabled=true; btn.textContent='Subiendo ticket…';
-  let path; try{path=await subirArchivo(NEW.file)}catch(e){btn.disabled=false;btn.textContent='Guardar trabajo';toast('No se pudo subir el ticket: '+cleanErr(e),true);return}
-  const rxE=e=>{const r=(ex&&ex.rx&&ex.rx[e])||[];return [r[0]||'',r[1]||'',r[2]||'',r[3]||'',NEW.dip[e],NEW.alt[e]]};
-  const r=await act('trabajo_crear',{venta:f.venta,id_trabajo:f.id_trabajo,paciente_id:NEW.paciente_id,paciente_nombre:f.paciente_nombre,telefono:f.telefono.replace(/\D/g,''),
-    sede:ME.sede,fecha_venta:f.fecha_venta||iso(HOY),laboratorio:NEW.lab,tipo:f.tipo,material:f.material,tratamiento:f.tratamiento,
-    rx:{od:rxE('od'),oi:rxE('oi')},armazon:f.arm_propio?{propio:true,desc:'Armazón del paciente'}:{desc:f.arm_desc,sku:f.arm_sku,marca:(f.arm_desc.split(' ')[0]||''),propio:false,lc_dias:num(f.lc_dias)||null},
-    precio:{armazon:num(f.precio_arm),mica:num(f.precio_mica)},costo:{armazon:num(f.costo_arm),mica:num(f.costo_mica)},total:num(f.total),
-    respaldo:!!ex,referido:NEW.refOk?NEW.ref:'',garantia_firmada:NEW.gar,ticket_leido:NEW.leido,
-    pago:{monto:num(f.anticipo),forma:f.forma||'Efectivo',archivo:path,leido:NEW.leido.anticipo!=null}});
-  if(r){toast('Trabajo guardado');resetNew();VIEW=ME.rol==='ventas'?'tablero':'trabajos';render();window.scrollTo(0,0)}
-  else{const b=document.getElementById('wiz-save');if(b){b.disabled=false;b.textContent='Guardar trabajo'}}
-}
-
 /* ---------- Expediente refractivo ---------- */
 const DXS=['Miopía','Miopía alta','Hipermetropía','Astigmatismo miópico','Astigmatismo hipermetrópico','Astigmatismo mixto','Presbicia','Anisometropía','Ambliopía','Estrabismo','Ojo seco','Pterigión','Queratocono','Catarata incipiente','Pseudofaquia','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular'];
 const DX_REF=['Catarata','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular','Queratocono','Pterigión'];
@@ -841,6 +893,7 @@ function expResumen(p,ex,wizard){
   return `<div class="card"><div class="split"><div style="min-width:0"><h3>${esc(p.nombre)}</h3><div class="tiny">${edad(p.nacimiento)} años · ${esc(p.expediente)} · graduó ${esc(ex.optometrista||'—')} el ${fmtY(ex.fecha)}</div></div>${wizard?'<span class="pill mute">Del expediente · no editable</span>':''}${ex.archivo?`<button class="btn sm" data-ver="${esc(ex.archivo)}">${ico('file','sm')}Respaldo</button>`:''}</div>
   <div class="chips">${(ex.dx||[]).map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>
   ${ref?`<div class="alert warn">! ${esc(ref)}. Ofrezca consulta con oftalmología.</div>`:''}
+  ${!(ex.av&&ex.av.od&&ex.av.od.scl)?'<div class="alert info">Graduación tomada de la hoja de laboratorio. Faltan agudeza visual, capacidad visual y diagnósticos: capture una graduación completa para el expediente.</div>':''}
   ${rxTable(ex)}${avTable(ex)}</div>`;
 }
 VISTAS.expediente=function(){
@@ -859,6 +912,7 @@ function vExpDetalle(p){
   <div class="split" style="margin-top:12px"><div><h1>${esc(p.nombre)}</h1><p class="sub">${edad(p.nacimiento)} años · nació el ${fmtY(p.nacimiento)} · ${esc(p.expediente)} · ${esc(fmtTel(p.telefono))}</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expform>+ Nueva graduación</button>':''}</div>
   <div class="section">${cambio}${ex?expResumen(p,ex,false)+(ME.rol!=='contabilidad'?`<div class="actions">${bajaAbierta(ex.id)?'<span class="pill warn">Borrado solicitado · pendiente de Dirección</span>':`<button class="btn sm danger" data-bjexam="${ex.id}">Solicitar borrado de esta graduación</button>`}</div>`:''):'<div class="empty">Sin graduación capturada.</div>'}</div>
   ${prev.length?`<div class="section"><h2>Graduaciones anteriores</h2>${prev.map(x=>`<div class="card"><div class="split"><b>${fmtY(x.fecha)}</b><span class="tiny">${esc(x.optometrista||'')}</span></div>${rxTable(x)}<div class="chips">${(x.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div>`).join('')}</div>`:''}
+  ${trab.some(t=>t.hoja_archivo||t.ticket_archivo)?`<div class="section"><h2>Documentos de eOptics</h2><div class="docs">${trab.map(t=>`<div class="doc">${ico('file')}<div><b>Venta ${esc(t.venta)}${t.id_trabajo?' · trabajo '+esc(t.id_trabajo):''}</b><div class="tiny">${fmtY(t.fecha_venta)} · ${esc(t.tipo)} · ${esc(t.material)}</div></div><div class="actions">${t.hoja_archivo?`<button class="btn sm" data-ver="${esc(t.hoja_archivo)}">${ico('eye','sm')}Hoja de laboratorio</button>`:''}${t.ticket_archivo?`<button class="btn sm" data-ver="${esc(t.ticket_archivo)}">${ico('ticket','sm')}Ticket</button>`:''}${t.garantia_archivo?`<button class="btn sm" data-ver="${esc(t.garantia_archivo)}">${ico('alert','sm')}Garantía</button>`:''}</div></div>`).join('')}</div></div>`:''}
   <div class="section"><h2>Trabajos de óptica</h2>${trab.length?`<div class="lane" style="margin-top:0">${trab.map(taskHTML).join('')}</div>`:'<div class="empty">Sin trabajos registrados.</div>'}</div>`;
 }
 function vExpForm(p){
@@ -982,6 +1036,199 @@ VISTAS.posventa=function(){
   <div class="seg" style="margin-top:12px">${[['armazon','Lentes y armazón'],['lc','Lentes de contacto']].map(([k,l])=>`<button aria-pressed="${PTAB===k}" data-ptab="${k}">${l}<span class="c">${all.filter(p=>p.prod===k&&!p.hecho).length}</span></button>`).join('')}</div>
   ${keys.map(k=>{const g=L.filter(p=>p.key===k);return `<section class="lane"><div class="lane-h"><h3>${MOTIVOS[k]}</h3><span class="count" style="margin-left:auto">${g.filter(p=>!p.hecho).length} de ${g.length}</span></div>${g.map(p=>`<div class="task pv" style="cursor:default"><span class="av ${p.hecho?'ok':'warn'}">${esc(iniciales(p.pac))}</span><div style="min-width:0"><div class="t1">${esc(p.pac)}</div><div class="t2"><span>${esc(p.det)}</span></div></div><div class="actions" style="justify-content:flex-end"><button class="btn wa sm" data-posv="${esc(p.clave)}">WhatsApp</button><select class="btn sm" aria-label="Resultado del contacto" data-res="${esc(p.clave)}">${RES.map(o=>`<option ${p.res===o?'selected':''}>${o}</option>`).join('')}</select></div></div>`).join('')}</section>`}).join('')||'<div class="empty" style="margin-top:16px">Sin contactos para hoy en este grupo.</div>'}`;
 };
+
+/* ---------- Nuevo trabajo: 1) ticket de venta  2) hoja de laboratorio  3) laboratorio y firma ---------- */
+let NEW=null;
+function resetNew(){NEW={step:1,
+  tk:{file:null,leyendo:false,prog:0,origen:'',L:null,err:''},
+  hj:{file:null,leyendo:false,prog:0,origen:'',L:null,err:''},
+  m:{venta:'',paciente:'',telefono:'',fecha_entrega:'',tipo:'Monofocal',material:'',total_lentes:'',total_productos:'',total:'',pago:'',forma:'Efectivo',folio:''},
+  rx:{od:{esf:'',cil:'',eje:'',add:'',dnp:'',alt:''},oi:{esf:'',cil:'',eje:'',add:'',dnp:'',alt:''}},
+  paciente_id:'',lab:'',gar:false,ref:'',refOk:true}}
+resetNew();
+const TIPOS=['Monofocal','Bifocal','Progresivo','Lente de contacto'];
+const TRATS=['Blanca','AR','Fotocromático','Fotocromático AR','Blue Free','Blue-ray','Polarizado','Panoramic Revolution 360','Panoramic Revolution 360 FOTO','Thin & Lite'];
+const tkPDF=()=>NEW.tk.origen==='pdf'&&NEW.tk.L&&NEW.tk.L.venta;
+const hjPDF=()=>NEW.hj.origen==='pdf'&&NEW.hj.L&&NEW.hj.L.od;
+/* datos finales del ticket (PDF bloqueado; foto/manual editables) */
+function T(){
+  const L=tkPDF()?NEW.tk.L:null, m=NEW.m;
+  if(L) return {venta:L.venta,paciente:L.paciente||'',telefono:L.telefono||'',fecha_entrega:L.fecha_entrega||'',fecha_venta:L.fecha_venta||iso(HOY),tipo:L.tipo,material:LECT.titulo(L.material||''),
+    total_lentes:+L.total_lentes||0,total_productos:+L.total_productos||0,total:+L.total||0,pagado:+L.pagado||0,saldo:L.saldo,pagos:L.pagos||[],productos:L.productos||[],vendedor:L.vendedor||'',num_paciente:L.num_paciente||'',pdf:true};
+  const pago=num(m.pago);
+  return {venta:m.venta.trim(),paciente:m.paciente.trim(),telefono:m.telefono.replace(/\D/g,''),fecha_entrega:m.fecha_entrega,fecha_venta:iso(HOY),tipo:m.tipo,material:m.material.trim(),
+    total_lentes:num(m.total_lentes),total_productos:num(m.total_productos),total:num(m.total)||num(m.total_lentes)+num(m.total_productos),pagado:pago,saldo:null,
+    pagos:pago>0?[{folio:m.folio.trim(),fecha:iso(HOY),forma:m.forma,monto:pago}]:[],productos:num(m.total_productos)?[{cant:1,desc:'Armazón / productos',importe:num(m.total_productos)}]:[],vendedor:'',num_paciente:'',pdf:false};
+}
+VISTAS.nuevo=function(){
+  const s=NEW.step;
+  return `<div class="split"><div><h1>Nuevo trabajo</h1><p class="sub">Se arma con dos documentos de eOptics: el ticket de venta (pagos) y la hoja de laboratorio (graduación).</p></div><button class="btn sm" data-go="${ME.rol==='ventas'?'tablero':'resumen'}">Cancelar</button></div>
+  <ol class="stepper">${['Ticket de venta','Hoja de laboratorio y paciente','Laboratorio y firma'].map((x,i)=>`<li class="${i+1<s?'done':i+1===s?'cur':''}"><span>${i+1<s?'✓':i+1}</span>${x}</li>`).join('')}</ol>
+  <div id="wiz" class="form" style="margin-top:14px">${[w1,w2,w3][s-1]()}</div>`;
+};
+function zona(id,titulo,texto){return `<label class="drop" for="${id}"><span class="ic">${ico('upload')}</span><b>${titulo}</b><span class="tiny">${texto}</span><input type="file" id="${id}" accept="image/*,application/pdf"></label>`}
+function leyendo(d){return `<div class="card"><div class="alert info">Leyendo ${esc(d.file.name)}${d.origen==='foto'||d.prog?` · reconociendo texto de la foto ${d.prog||0}%`:''}…</div></div>`}
+const mi=(k,lab,attrs='')=>`<div class="f"><label for="nm-${k}">${lab}</label><input id="nm-${k}" data-nm="${k}" value="${esc(NEW.m[k])}" ${attrs}></div>`;
+
+function w1(){
+  const d=NEW.tk;
+  if(!d.file) return zona('tk-new','Subir ticket de venta de eOptics','Es el que trae "Pagos anticipados" y la lista de PAGOS. Del PDF se leen la venta, el paciente, los productos con su precio, el total y cada pago; esos datos quedan bloqueados.');
+  if(d.leyendo) return leyendo(d);
+  const cambiar=`<div class="tiny">${esc(d.file.name)} · <button class="linkbtn" data-tkreset>Cambiar archivo</button></div>`;
+  if(d.err) return `<div class="card">${cambiar}<div class="alert bad">✕ ${esc(d.err)}</div></div>`;
+  const t=T(); const dup=t.venta&&DB.trabajos.some(x=>x.venta===t.venta);
+  const pct=t.total?t.pagado/t.total*100:0;
+  let body;
+  if(t.pdf){
+    body=`<div class="split"><h3>Datos del ticket</h3><span class="pill ok">Leído del PDF · no editable</span></div>${cambiar}
+    <div class="lks">${lk('Venta',t.venta)}${lk('Fecha de venta',fmtY(t.fecha_venta))}${lk('Paciente',t.paciente)}${lk('Teléfono',fmtTel(t.telefono))}${lk('Entrega prometida',t.fecha_entrega?fmtY(t.fecha_entrega):'—')}${lk('Vendedor',t.vendedor||'—')}${lk('Lentes',`${t.tipo} · ${t.material}`)}${lk('No. de paciente eOptics',t.num_paciente||'—')}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
+      <tr><td>Lentes · ${esc(t.tipo)} ${esc(t.material)}</td><td class="num">${money(t.total_lentes)}</td></tr>
+      ${t.productos.map(p=>`<tr><td>${p.cant>1?p.cant+' × ':''}${esc(LECT.titulo(p.desc))}</td><td class="num">${money(p.importe)}</td></tr>`).join('')}
+      <tr><td><b>Total</b></td><td class="num"><b>${money(t.total)}</b></td></tr></tbody></table></div>
+    <h3>Pagos del ticket</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Folio</th><th>Fecha</th><th>Forma</th><th class="num">Monto</th></tr></thead><tbody>
+      ${t.pagos.map(p=>`<tr><td class="rx">${esc(p.folio)}</td><td>${fmtY(p.fecha)}</td><td>${esc(p.forma)}</td><td class="num">${money(p.monto)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">El ticket no trae pagos.</td></tr>'}
+      <tr><td colspan="3"><b>Pagado</b> · saldo ${money(t.saldo!=null?t.saldo:t.total-t.pagado)}</td><td class="num"><b>${money(t.pagado)}</b></td></tr></tbody></table></div>`;
+  } else {
+    body=`<div class="split"><h3>Datos del ticket</h3><span class="pill warn">${d.origen==='foto'?'Leído de foto · por verificar':'Captura manual · por verificar'}</span></div>${cambiar}
+    <div class="alert warn">! ${d.origen==='foto'?'De la foto se leyó lo que se pudo; revise cada dato contra el ticket.':'No se pudo leer el archivo.'} Al guardar ya no se pueden cambiar y Contabilidad los verifica contra la imagen. Con el PDF de eOptics todo se llena solo.</div>
+    <div class="fields">${mi('venta','No. de venta *','inputmode="numeric"')}${mi('telefono','WhatsApp del paciente *','inputmode="tel"')}<div class="f w2"><label for="nm-paciente">Paciente *</label><input id="nm-paciente" data-nm="paciente" value="${esc(NEW.m.paciente)}"></div></div>
+    <div class="fields"><div class="f"><label for="nm-tipo">Tipo de lente</label><select id="nm-tipo" data-nm="tipo">${TIPOS.map(o=>`<option ${NEW.m.tipo===o?'selected':''}>${o}</option>`).join('')}</select></div>${mi('material','Material y tratamiento')}${mi('fecha_entrega','Fecha de entrega','type="date"')}</div>
+    <div class="fields">${mi('total_lentes','Total lentes *','inputmode="decimal"')}${mi('total_productos','Armazón y productos','inputmode="decimal"')}${mi('pago','Pago recibido *','inputmode="decimal"')}<div class="f"><label for="nm-forma">Forma de pago</label><select id="nm-forma" data-nm="forma">${['Efectivo','Tarjeta','Transferencia'].map(o=>`<option ${NEW.m.forma===o?'selected':''}>${o}</option>`).join('')}</select></div></div>`;
+  }
+  const errs=[];
+  if(!/^\d{3,}$/.test(t.venta)) errs.push('Falta el número de venta.');
+  if(dup) errs.push(`La venta ${t.venta} ya está registrada. Un ticket no se puede usar dos veces.`);
+  if(!t.paciente) errs.push('Falta el nombre del paciente.');
+  if(!/^\d{10}$/.test(t.telefono)) errs.push('Falta el teléfono del paciente (10 dígitos).');
+  if(t.total<=0) errs.push('Falta el total de la venta.');
+  if(!t.pagos.length) errs.push('El ticket no trae pagos: sin anticipo no se registra el trabajo.');
+  if(t.pagado>t.total+0.01) errs.push('Los pagos superan el total.');
+  const warns=[]; if(t.total>0&&t.pagado>0&&pct<CFG.anticipo) warns.push(`Anticipo de ${Math.round(pct)}%: se guarda, pero no entra al pedido hasta completar el ${CFG.anticipo}%.`);
+  NEW.w1ok=!errs.length;
+  return `<div class="card">${body}<div id="w1-chk" class="form">${errs.map(e=>`<div class="alert bad">✕ ${esc(e)}</div>`).join('')}${warns.map(e=>`<div class="alert warn">! ${esc(e)}</div>`).join('')}${!errs.length&&!warns.length?`<div class="alert ok">✓ Pagado ${Math.round(pct)}% · cumple el anticipo mínimo.</div>`:''}</div></div>
+  <div class="actions"><button class="btn primary big" data-wiz="2" ${errs.length?'disabled':''}>Continuar con la hoja de laboratorio</button></div>`;
+}
+function pacienteDe(nombre,numEo){const n=String(nombre||'').trim().toLowerCase();return DB.pacientes.find(p=>(numEo&&p.num_eoptics===numEo)||p.nombre.trim().toLowerCase()===n)}
+function rxFinal(){
+  if(hjPDF()){const L=NEW.hj.L;return {od:{...L.od},oi:{...L.oi}}}
+  return NEW.rx;
+}
+function w2(){
+  const d=NEW.hj, t=T();
+  let html='';
+  if(!d.file) html=zona('hj-new','Subir hoja de laboratorio de eOptics','Trae la graduación, la distancia nasopupilar, la altura y el armazón. Se guarda también en el expediente del paciente.');
+  else if(d.leyendo) html=leyendo(d);
+  else{
+    const cambiar=`<div class="tiny">${esc(d.file.name)} · <button class="linkbtn" data-hjreset>Cambiar archivo</button></div>`;
+    if(d.err) html=`<div class="card">${cambiar}<div class="alert bad">✕ ${esc(d.err)}</div></div>`;
+    else{
+      const L=d.L||{}, lock=hjPDF(), R=rxFinal();
+      const cel=(e,k)=>lock&&String(L[e][k]||'')!==''?`<span class="rx">${esc(L[e][k])}</span>`:`<input data-rx="${e}.${k}" value="${esc(R[e][k])}" aria-label="${e} ${k}" ${k==='eje'?'inputmode="numeric"':'inputmode="decimal"'}>`;
+      html=`<div class="card"><div class="split"><h3>Hoja de laboratorio${L.id_trabajo?' · trabajo '+esc(L.id_trabajo):''}</h3><span class="pill ${lock?'ok':'warn'}">${lock?'Leída del PDF':'Por verificar'}</span></div>${cambiar}
+      ${L.venta&&L.venta!==t.venta?`<div class="alert bad">✕ La hoja es de la venta ${esc(L.venta)} y el ticket es de la venta ${esc(t.venta)}. Suba la hoja correcta.</div>`:''}
+      <div class="lks">${lk('Tipo',L.tipo_lente||t.tipo)}${lk('Material',LECT.titulo(L.material||t.material))}${lk('Armazón',L.armazon_desc?`${L.armazon_codigo} · ${L.armazon_desc}`:'—')}${lk('DI total',L.di?L.di+' mm':'—')}</div>
+      <div class="tbl-wrap"><table class="rxedit"><thead><tr><th></th><th>Esfera</th><th>Cilindro</th><th>Eje</th><th>Adición</th><th>DNP</th><th>Altura</th></tr></thead><tbody>
+      ${['od','oi'].map(e=>`<tr><td><b>${e==='od'?'OD':'OI'}</b></td>${['esf','cil','eje','add','dnp','alt'].map(k=>`<td>${cel(e,k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <div id="w2-chk" class="form"></div></div>`;
+      const p=pacienteDe(t.paciente,t.num_paciente);
+      if(p&&!NEW.paciente_id) NEW.paciente_id=p.id;
+      const pp=NEW.paciente_id?DB.pacientes.find(x=>x.id===NEW.paciente_id):null;
+      html+=`<div class="card"><h3>Expediente del paciente</h3>${pp?`<div class="split"><div><b>${esc(pp.nombre)}</b><div class="tiny">${esc(pp.expediente)} · ${pp.nacimiento?edad(pp.nacimiento)+' años':'sin fecha de nacimiento'} · ${pp.examenes.length} graduación(es)</div></div><span class="pill ok">Se agrega la hoja a su expediente</span></div>`
+        :`<p class="tiny" style="margin:0">${esc(t.paciente)} no tiene expediente. Se crea con la graduación de esta hoja; después se completan agudeza visual, capacidad visual y diagnósticos.</p><div class="fields"><div class="f"><label for="w2-nac">Fecha de nacimiento</label><input id="w2-nac" type="date" value="${esc(NEW.nac||'')}"></div></div>`}</div>`;
+    }
+  }
+  return html+`<div class="actions"><button class="btn primary big" id="wiz-next" data-wiz="3" ${d.file&&!d.leyendo&&!d.err?'':'disabled'}>Continuar</button><button class="btn" data-wiz="1">Atrás</button></div>`;
+}
+function w2Check(){
+  const box=document.getElementById('w2-chk'); if(!box) return;
+  document.querySelectorAll('[data-rx]').forEach(el=>{const [e,k]=el.dataset.rx.split('.');NEW.rx[e][k]=el.value.trim()});
+  if(document.getElementById('w2-nac')) NEW.nac=document.getElementById('w2-nac').value;
+  const R=rxFinal(), t=T(), L=NEW.hj.L||{}, errs=[];
+  const need=t.tipo==='Bifocal'||t.tipo==='Progresivo';
+  ['od','oi'].forEach(e=>{const E=e.toUpperCase();
+    if(R[e].esf==='') errs.push(`Falta la esfera ${E}.`);
+    if(R[e].cil&&!R[e].eje) errs.push(`Hay cilindro en ${E} sin eje.`);
+    if(R[e].eje&&(isNaN(+R[e].eje)||+R[e].eje<0||+R[e].eje>180)) errs.push(`Eje ${E} fuera de rango.`);
+    if(!R[e].dnp&&!/contacto/i.test(t.tipo)) errs.push(`Falta la distancia nasopupilar ${E}.`);
+    if(need&&!R[e].alt) errs.push(`${t.tipo}: falta la altura ${E}.`);
+    if(need&&!R[e].add) errs.push(`${t.tipo}: falta la adición ${E}.`);});
+  if(L.venta&&L.venta!==t.venta) errs.push('La hoja no corresponde a la venta del ticket.');
+  box.innerHTML=errs.map(e=>`<div class="alert bad">✕ ${esc(e)}</div>`).join('')||'<div class="alert ok">✓ Graduación y medidas completas.</div>';
+  const b=document.getElementById('wiz-next'); if(b) b.disabled=!!errs.length;
+  return !errs.length;
+}
+function w3(){
+  const t=T(), sug=/Policarbonato|1\.67|1\.74|FOTO|Fotocrom|Trivex/i.test(t.material)||/contacto/i.test(t.tipo)?'Health Vision':'Sra. Angy'; if(!NEW.lab) NEW.lab=sug;
+  return `<div class="card"><h3>Laboratorio</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" aria-pressed="${NEW.lab===l.nombre}" data-lab="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}</div><p class="tiny">Sugerido por el material: ${sug}.</p></div>
+  ${CFG.ref&&CFG.ref.activo?`<div class="card"><h3>Código de referido</h3><div class="f" style="max-width:320px"><input id="w-ref" placeholder="COE-4001 (opcional)" value="${esc(NEW.ref)}" aria-label="Código de referido"><span class="hint" id="w-refh"></span></div></div>`:''}
+  <div class="card"><h3>Políticas de garantía</h3><p class="tiny">Léalas al paciente; firma de conformidad.</p><label class="switch"><input type="checkbox" id="w-gar" ${NEW.gar?'checked':''}> El paciente firmó las políticas de garantía</label></div>
+  <div class="card"><h3>Resumen</h3><div class="lks">${lk('Venta',t.venta)}${lk('Paciente',t.paciente)}${lk('Trabajo',`${t.tipo} · ${t.material}`)}${lk('Entrega prometida',t.fecha_entrega?fmtY(t.fecha_entrega):'—')}${lk('Total',money(t.total))}${lk('Pagado',money(t.pagado))}${lk('Saldo',money(t.total-t.pagado))}${lk('Documentos','Ticket y hoja de laboratorio')}</div></div>
+  <div class="actions"><button class="btn primary big" id="wiz-save" data-wsave>Guardar trabajo</button><button class="btn" data-wiz="2">Atrás</button></div>`;
+}
+function wizCheck(){
+  if(!document.getElementById('wiz')) return;
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
+  if(NEW.step===1&&document.querySelector('[data-nm]')){document.querySelectorAll('[data-nm]').forEach(el=>{NEW.m[el.dataset.nm]=el.value});}
+  if(NEW.step===2) w2Check();
+  if(NEW.step===3&&document.getElementById('w-gar')){
+    NEW.gar=document.getElementById('w-gar').checked; NEW.ref=val('w-ref').toUpperCase(); NEW.refOk=true;
+    const h=document.getElementById('w-refh'), t=T();
+    if(h){ if(NEW.ref){const r=DB.referidos.find(x=>x.codigo===NEW.ref);
+        if(!r){h.textContent='Código no encontrado.';NEW.refOk=false}
+        else if(r.paciente_nombre.toLowerCase()===t.paciente.toLowerCase()||(r.telefono&&r.telefono.replace(/\D/g,'')===t.telefono)){h.textContent='No puede usar su propio código.';NEW.refOk=false}
+        else if(t.total<CFG.ref.minCompra){h.textContent=`Aplica en compras desde ${money(CFG.ref.minCompra)}.`;NEW.refOk=false}
+        else h.textContent=`Recomendado por ${r.paciente_nombre} · ${refBenef()}`;
+      } else h.textContent='';}
+    document.getElementById('wiz-save').disabled=!(NEW.gar&&NEW.refOk);
+  }
+}
+async function leerDoc(cual,file){
+  const d=NEW[cual]; d.file=file; d.leyendo=true; d.err=''; d.L=null; d.prog=0; d.origen=file.type==='application/pdf'?'pdf':'foto'; render();
+  const {texto,origen}=await textoDe(file,p=>{d.prog=p;const el=document.querySelector('#wiz .alert.info');if(el)el.textContent=`Leyendo ${file.name} · reconociendo texto de la foto ${p}%…`});
+  d.origen=origen;
+  const comoTicket=LECT.ticket(texto), comoHoja=LECT.hoja(texto);
+  if(cual==='tk'){
+    if(!comoTicket.venta&&comoHoja.od) d.err='Este archivo es la hoja de laboratorio. Aquí va el ticket de venta, el que trae los pagos; la hoja se sube en el paso 2.';
+    else{ d.L=comoTicket;
+      if(!tkPDF()){const L=comoTicket;Object.assign(NEW.m,{venta:L.venta||NEW.m.venta,paciente:L.paciente||NEW.m.paciente,telefono:L.telefono||NEW.m.telefono,fecha_entrega:L.fecha_entrega||NEW.m.fecha_entrega,tipo:L.tipo&&L.tipo_lente?L.tipo:NEW.m.tipo,material:L.material?LECT.titulo(L.material):NEW.m.material,total_lentes:L.total_lentes!=null?String(L.total_lentes):NEW.m.total_lentes,total_productos:L.total_productos!=null?String(L.total_productos):NEW.m.total_productos,total:L.total!=null?String(L.total):NEW.m.total});
+        if(L.pagos&&L.pagos.length){const p=L.pagos[L.pagos.length-1];Object.assign(NEW.m,{pago:String(L.pagos.reduce((s,x)=>s+x.monto,0)),forma:p.forma||'Efectivo',folio:p.folio||''})}}
+    }
+  } else {
+    if(!comoHoja.od&&comoTicket.venta) d.err='Este archivo es el ticket de venta. Aquí va la hoja de laboratorio de eOptics (la que trae la graduación).';
+    else{ d.L=comoHoja; if(!hjPDF()&&comoHoja.od){NEW.rx={od:{...NEW.rx.od,...comoHoja.od},oi:{...NEW.rx.oi,...comoHoja.oi}}} }
+  }
+  d.leyendo=false; render();
+}
+async function wizSave(){
+  const t=T(), btn=document.getElementById('wiz-save'); btn.disabled=true;
+  const fin=()=>{const b=document.getElementById('wiz-save');if(b){b.disabled=false;b.textContent='Guardar trabajo'}};
+  let tkPath,hjPath;
+  try{btn.textContent='Subiendo ticket…';tkPath=await subirArchivo(NEW.tk.file);btn.textContent='Subiendo hoja…';hjPath=await subirArchivo(NEW.hj.file)}
+  catch(e){toast('No se pudo subir el archivo: '+cleanErr(e),true);fin();return}
+  btn.textContent='Guardando…';
+  const R=rxFinal(), L=NEW.hj.L||{};
+  const rx4=e=>[R[e].esf,R[e].cil,R[e].eje,R[e].add];
+  const examen={optometrista:'Hoja de laboratorio eOptics'+(L.id_trabajo?' · trabajo '+L.id_trabajo:''),av:{},rx:{od:rx4('od'),oi:rx4('oi')},dx:[],notas:'Graduación tomada de la hoja de laboratorio de la venta '+t.venta,archivo:hjPath};
+  try{
+    let pid=NEW.paciente_id;
+    if(!pid){const r=await rpc('opt_accion',{p_token:TOKEN,p_accion:'paciente_crear',p_data:{nombre:LECT.titulo(t.paciente),nacimiento:NEW.nac||null,telefono:t.telefono,sede:ME.sede,examen},p_pin:null});pid=r.id;NEW.paciente_id=pid;NEW.examenHecho=true}
+    else{const p=DB.pacientes.find(x=>x.id===pid), ex=p&&p.examenes[0];
+      const igual=ex&&['od','oi'].every(e=>[0,1,2,3].every(i=>String((ex.rx&&ex.rx[e]||[])[i]||'')===String(rx4(e)[i]||'')));
+      if(!igual&&!NEW.examenHecho){await rpc('opt_accion',{p_token:TOKEN,p_accion:'examen_crear',p_data:{paciente_id:pid,examen},p_pin:null});NEW.examenHecho=true}}
+    const arm=(t.productos||[]).find(p=>!/ESTUCHE|PA[ÑN]O|L[IÍ]QUIDO|SOLUCI/i.test(p.desc));
+    const data={venta:t.venta,id_trabajo:L.id_trabajo||'',paciente_id:pid,paciente_nombre:LECT.titulo(t.paciente),telefono:t.telefono,sede:ME.sede,fecha_venta:t.fecha_venta,fecha_entrega:t.fecha_entrega||null,
+      laboratorio:NEW.lab,tipo:t.tipo,material:t.material,tratamiento:t.material,
+      rx:{od:[...rx4('od'),R.od.dnp,R.od.alt],oi:[...rx4('oi'),R.oi.dnp,R.oi.alt]},
+      armazon:{desc:L.armazon_desc||(arm?LECT.titulo(arm.desc):''),sku:L.armazon_codigo||'',marca:'',propio:!arm&&!L.armazon_codigo,di:L.di||''},
+      precio:{armazon:arm?arm.importe:t.total_productos,mica:t.total_lentes},costo:{},total:t.total,productos:t.productos,
+      referido:NEW.refOk?NEW.ref:'',garantia_firmada:NEW.gar,num_paciente:t.num_paciente,
+      ticket_archivo:tkPath,ticket_leido:NEW.tk.L||{},ticket_pdf:t.pdf,hoja_archivo:hjPath,hoja_leida:NEW.hj.L||{},pagos:t.pagos};
+    await rpc('opt_trabajo_nuevo',{p_token:TOKEN,p_data:data});
+    await cargar(); toast('Trabajo guardado'); resetNew(); VIEW=ME.rol==='ventas'?'tablero':'trabajos'; render(); window.scrollTo(0,0);
+  }catch(e){toast(cleanErr(e),true);await cargar().catch(()=>{});fin()}
+}
 
 /* ================= Administración ================= */
 function tile(k,v,s){return `<div class="card"><span class="label">${k}</span><span class="saldo money">${v}</span><span class="tiny">${s}</span></div>`}
@@ -1156,6 +1403,12 @@ function drawSheet(){
    <div class="card"><h3>Avance</h3><ol class="timeline">${PASOS.map((p,i)=>{const d=ev(t,p[2]);const cls=t.estado==='garantia'?(d?'done':''):(i<idx||t.estado==='entregado'?'done':i===idx?'cur':'');return `<li class="${cls}"><span class="tdot"></span><span>${p[1]}</span><span class="when">${d?fmt(d):(p[0]==='recibido'&&t.llega?'esperado '+fmt(t.llega):'')}</span></li>`}).join('')}</ol></div>
    <div class="card"><div class="split"><h3>Graduación y medidas</h3>${t.respaldo?'<span class="pill ok">Del expediente</span>':'<span class="pill warn">Sin respaldo</span>'}</div>
    <div class="tbl-wrap"><table><thead><tr><th></th><th>Esf</th><th>Cil</th><th>Eje</th><th>Add</th><th>DIP</th><th>Alt</th></tr></thead><tbody>${rxRow('od')}${rxRow('oi')}</tbody></table></div></div>
+   <div class="card"><div class="split"><h3>Documentos de eOptics</h3>${t.fecha_entrega?`<span class="pill ${prometidaVencida(t)?'bad':'mute'}">Entrega prometida ${fmt(t.fecha_entrega)}</span>`:''}</div>
+    <div class="docs">
+     <div class="doc">${ico('ticket')}<div><b>Ticket de venta</b><div class="tiny">${t.pagos.length} pago${t.pagos.length===1?'':'s'} · ${money(pagado(t))} de ${money(total(t))}</div></div><div class="actions">${t.ticket_archivo?`<button class="btn sm" data-ver="${esc(t.ticket_archivo)}">${ico('eye','sm')}Ver</button>`:''}${puede?`<button class="btn sm" data-pagar>${ico('upload','sm')}Ticket actualizado</button>`:''}</div></div>
+     <div class="doc">${ico('file')}<div><b>Hoja de laboratorio</b><div class="tiny">${t.hoja_archivo?'Trabajo '+esc(t.id_trabajo||'—'):'<span style="color:var(--bad)">Falta subirla</span>'}</div></div><div class="actions">${t.hoja_archivo?`<button class="btn sm" data-ver="${esc(t.hoja_archivo)}">${ico('eye','sm')}Ver</button>`:''}${puede?`<button class="btn sm" data-subhoja>${ico('upload','sm')}${t.hoja_archivo?'Reemplazar':'Subir'}</button>`:''}<button class="btn sm" data-printlab>${ico('print','sm')}Hoja COE</button></div></div>
+     ${t.garantia_archivo||t.estado==='garantia'?`<div class="doc">${ico('alert')}<div><b>Formato de garantía</b><div class="tiny">${t.garantia_archivo?'Subido':'<span style="color:var(--bad)">Falta el formato de eOptics</span>'}</div></div><div class="actions">${t.garantia_archivo?`<button class="btn sm" data-ver="${esc(t.garantia_archivo)}">${ico('eye','sm')}Ver</button>`:''}${puede?`<button class="btn sm" data-subgar>${ico('upload','sm')}${t.garantia_archivo?'Reemplazar':'Subir'}</button>`:''}</div></div>`:''}
+    </div></div>
    <div class="card"><h3>Producto</h3><dl class="kv"><dt>Mica</dt><dd>${esc(t.tipo)} · ${esc(t.material)}</dd><dt>Tratamiento</dt><dd>${esc(t.tratamiento)}${patentada(t)?' <span class="pill">Lleva certificado</span>':''}</dd><dt>Armazón</dt><dd>${esc(t.armazon.desc||'—')}${t.armazon.sku?` <span class="tiny rx">${esc(t.armazon.sku)}</span>`:''}</dd><dt>Laboratorio</dt><dd>${esc(t.laboratorio)}</dd><dt>Asesora</dt><dd>${esc(t.asesora||'—')}</dd>${t.referido?`<dt>Referido por</dt><dd class="rx">${esc(t.referido)}</dd>`:''}</dl>
    ${mg.length?`<div class="alert warn">! Margen bajo el objetivo: ${mg.join(', ')}</div>`:''}</div>
    <div class="card"><div class="split"><h3>Pagos</h3><span class="saldo money">${saldo(t)?money(saldo(t))+' saldo':'Liquidado'}</span></div>
@@ -1173,12 +1426,17 @@ function modalGarantia(t){
   modal(`<h3>Garantía · ${esc(t.paciente_nombre)}</h3><div class="form">
    <div class="f"><label for="g-mot">Motivo</label><select id="g-mot"><option>Graduación incorrecta del laboratorio</option><option>Tratamiento distinto a lo pedido</option><option>Rayón o defecto de la mica</option><option>Altura o centrado mal medido en mostrador</option><option>Error de captura en la venta</option><option>Daño en el biselado</option><option>No tolera la graduación</option><option>Otro</option></select></div>
    <div class="f"><label for="g-det">Detalle</label><input id="g-det" placeholder="Qué se encontró"></div>
-   <label class="switch"><input type="checkbox" id="g-imp"> Es imputable a la asesora (genera contracargo si la comisión ya se pagó)</label></div>
+   <label class="switch"><input type="checkbox" id="g-imp"> Es imputable a la asesora (genera contracargo si la comisión ya se pagó)</label>
+   <div class="f"><label for="g-doc">Formato de garantía de eOptics (PDF o foto)</label><input id="g-doc" type="file" accept="image/*,application/pdf"><span class="hint">Si aún no lo tiene, se puede subir después desde el trabajo.</span></div></div>
    <div class="actions"><button class="btn danger" data-ok>Registrar garantía</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
      if(!e.target.closest('[data-ok]')) return;
      const motivo=b.querySelector('#g-mot').value+(b.querySelector('#g-det').value.trim()?': '+b.querySelector('#g-det').value.trim():'');
-     const imp=b.querySelector('#g-imp').checked; b.remove();
-     const r=await act('trabajo_estado',{id:t.id,estado:'garantia',motivo,imputable_asesora:imp}); if(r) toast('Garantía registrada');
+     const imp=b.querySelector('#g-imp').checked; const f=b.querySelector('#g-doc').files[0];
+     let path=null; if(f){const btn=b.querySelector('[data-ok]');btn.disabled=true;btn.textContent='Subiendo formato…';try{path=await subirArchivo(f)}catch(err){btn.disabled=false;btn.textContent='Registrar garantía';toast(cleanErr(err),true);return}}
+     b.remove();
+     const r=await act('trabajo_estado',{id:t.id,estado:'garantia',motivo,imputable_asesora:imp});
+     if(r&&path) await docsAct('garantia_doc',{id:t.id,archivo:path});
+     if(r) toast(path?'Garantía registrada con su formato':'Garantía registrada; falta subir el formato de eOptics');
    });
 }
 
@@ -1215,13 +1473,10 @@ function bindView(){
   const m=document.getElementById('main');
   const q=document.getElementById('q'); if(q) q.addEventListener('input',e=>{TQ=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)});
   const xq=document.getElementById('exq'); if(xq) xq.addEventListener('input',e=>{EX.q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('exq');n.focus();n.setSelectionRange(p,p)});
-  const tk=document.getElementById('tk-new'); if(tk) tk.addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
-    if(f.size>15*1024*1024){toast('El archivo pesa más de 15 MB',true);return}
-    NEW.file=f;NEW.leyendo=true;render();const L=leerTicket(await textoPDF(f));NEW.leido={};
-    const map={venta:'venta',id_trabajo:'id_trabajo',paciente:'paciente_nombre',telefono:'telefono',total:'total',anticipo:'anticipo',forma:'forma'};
-    Object.entries(map).forEach(([a,b])=>{if(L[a]!=null&&L[a]!==''){NEW.f[b]=String(L[a]);NEW.leido[b]=L[a]}}); if(NEW.leido.anticipo!=null) NEW.leido.anticipo=L.anticipo;
-    NEW.leyendo=false;render()});
-  const wz=document.getElementById('wiz'); if(wz){wz.addEventListener('input',wizCheck);wz.addEventListener('change',wizCheck);wizCheck()}
+  const okSize=f=>{if(f.size>15*1024*1024){toast('El archivo pesa más de 15 MB',true);return false}return true};
+  const tk=document.getElementById('tk-new'); if(tk) tk.addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f&&okSize(f))leerDoc('tk',f)});
+  const hj=document.getElementById('hj-new'); if(hj) hj.addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f&&okSize(f))leerDoc('hj',f)});
+  const wz=document.getElementById('wiz'); if(wz){wz.addEventListener('input',wizCheck);wz.addEventListener('change',e=>{wizCheck();if(NEW.step===1&&e.target.matches('[data-nm]'))render()});wizCheck()}
   m.querySelectorAll('[data-res]').forEach(s=>s.addEventListener('change',()=>{const p=posventaLista().find(x=>x.clave===s.dataset.res);act('posventa_resultado',{clave:p.clave,motivo:p.key,paciente:p.pac,resultado:s.value})}));
   const qa=document.getElementById('q-ase'); if(qa) qa.addEventListener('change',()=>{QASE=qa.value;render()});
   const qo=document.getElementById('q-off'); if(qo) qo.addEventListener('change',()=>{QOFF=+qo.value;render()});
@@ -1237,12 +1492,11 @@ document.getElementById('main').addEventListener('click',async e=>{
   if(el=C('[data-go]')){VIEW=el.dataset.go;if(VIEW==='nuevo')resetNew();render();window.scrollTo(0,0);return}
   if(el=C('[data-open]')){openJob(el.dataset.open);return}
   /* asistente */
-  if(el=C('[data-wiz]')){if(el.disabled)return;wizCheck();if(NEW.step===1&&!w1Check())return;NEW.step=+el.dataset.wiz;render();window.scrollTo(0,0);return}
-  if(C('[data-tkreset]')){NEW.file=null;NEW.leido={};render();return}
+  if(el=C('[data-wiz]')){if(el.disabled)return;wizCheck();const to=+el.dataset.wiz;if(to>NEW.step&&NEW.step===1&&!NEW.w1ok)return;if(to>NEW.step&&NEW.step===2&&!w2Check())return;NEW.step=to;render();window.scrollTo(0,0);return}
+  if(C('[data-tkreset]')){NEW.tk={file:null,leyendo:false,prog:0,origen:'',L:null,err:''};render();return}
+  if(C('[data-hjreset]')){NEW.hj={file:null,leyendo:false,prog:0,origen:'',L:null,err:''};render();return}
   if(el=C('[data-lab]')){NEW.lab=el.dataset.lab;wizCheck();render();return}
   if(C('[data-wsave]')){wizCheck();if(NEW.gar&&NEW.refOk)wizSave();return}
-  if(el=C('[data-pickpac]')){NEW.paciente_id=el.dataset.pickpac;render();return}
-  if(C('[data-goexpnew]')){EX.nuevo=true;EX.sel=null;EX.form=false;EX.prefill={nombre:NEW.f.paciente_nombre,telefono:NEW.f.telefono};EX.regresar=true;EX.dx=[];VIEW='expediente';render();window.scrollTo(0,0);return}
   if(el=C('[data-expadd]')){EX.sel=el.dataset.expadd;EX.form=true;EX.regresar=true;EX.dx=[];VIEW='expediente';render();window.scrollTo(0,0);return}
   /* expediente */
   if(el=C('[data-exp]')){EX.sel=el.dataset.exp;EX.form=false;render();window.scrollTo(0,0);return}
@@ -1295,6 +1549,8 @@ document.getElementById('layer').addEventListener('click',async e=>{
   if(el=C('[data-chk]')){const c={...(t.checklist||{})};c[el.dataset.chk]=el.checked;t.checklist=c;drawSheet();rpc('opt_accion',{p_token:TOKEN,p_accion:'trabajo_checklist',p_data:{id:t.id,checklist:c},p_pin:null}).catch(x=>toast(cleanErr(x),true));return}
   if(C('[data-pagar]')){const falta=t.estado==='capturado'?Math.max(0,total(t)*CFG.anticipo/100-pagado(t)):saldo(t);modalPago(t,t.estado==='capturado'?'Abono al anticipo':'Liquidar saldo',falta);return}
   if(C('[data-garantia]')){modalGarantia(t);return}
+  if(C('[data-subhoja]')){modalHoja(t);return}
+  if(C('[data-subgar]')){modalDoc('Formato de garantía de eOptics',async path=>{const r=await docsAct('garantia_doc',{id:t.id,archivo:path});if(r)toast('Formato de garantía guardado')});return}
   if(C('[data-printlab]')){imprimir(hojaLab(t));return}
   if(C('[data-printent]')){imprimir(hojaEntrega(t));return}
   if(el=C('[data-wa]')){const k=el.dataset.wa;mensajeWA(waMsg(t,k),t.telefono,k==='listo'?async()=>{const r=await act('trabajo_estado',{id:t.id,estado:'avisado'});if(r)toast('Aviso registrado')}:()=>act('aviso_registrar',{id:t.id,tipo:k}));return}
@@ -1304,8 +1560,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){const L=document.ge
 /* ================= arranque ================= */
 (async function(){
   if(TOKEN){try{await cargar()}catch(e){TOKEN=null;store.del('coeopt-token')}}
-  render();
-  setInterval(async()=>{if(TOKEN&&ME&&!BUSY&&!document.querySelector('.scrim.center')&&VIEW!=='nuevo'&&VIEW!=='config'&&VIEW!=='referidos'&&!EX.form&&!EX.nuevo){try{await cargar();render();if(OPEN)drawSheet()}catch(e){}}},60000);
+  render(); setTimeout(()=>mostrarAlertas(),700);
+  setInterval(async()=>{if(TOKEN&&ME&&!BUSY&&!document.querySelector('.scrim.center')&&VIEW!=='nuevo'&&VIEW!=='crm'&&!EX.form&&!EX.nuevo){try{await cargar();render();if(OPEN)drawSheet();mostrarAlertas()}catch(e){}}},60000);
 })();
 
 /* ================= Borrados con doble PIN ================= */
@@ -1354,6 +1610,230 @@ document.addEventListener('click',async e=>{
   if(el=C('[data-bjpago]')){const p=DB.trabajos.flatMap(t=>t.pagos.map(x=>({...x,t}))).find(x=>x.id===el.dataset.bjpago);solicitarBaja('pago',p.id,`Pago de ${money(p.monto)} · venta ${p.t.venta} · ${p.t.paciente_nombre}`);return}
   if(el=C('[data-bjexam]')){const ex=DB.pacientes.flatMap(p=>p.examenes.map(x=>({...x,p}))).find(x=>x.id===el.dataset.bjexam);solicitarBaja('examen',ex.id,`Graduación del ${fmtY(ex.fecha)} · ${ex.p.nombre}`);return}
 });
+
+/* ================= Alertas, hojas de laboratorio, CRM y resumen ================= */
+const prometidaVencida=t=>!!t.fecha_entrega&&['capturado','enviado','recibido','garantia'].includes(t.estado)&&diff(HOY,t.fecha_entrega)<0;
+/* la fecha prometida al paciente también cuenta en el semáforo */
+const semBase=sem;
+sem=function(t){
+  const r=semBase(t);
+  if(t.fecha_entrega&&['capturado','enviado','recibido','garantia'].includes(t.estado)){
+    const d=diff(HOY,t.fecha_entrega);
+    if(d<0&&r[0]!=='bad') return ['bad',`Entrega al paciente vencida hace ${-d} d`];
+    if(d<=1&&r[0]==='ok') return ['warn',`Se entrega al paciente ${d?'mañana':'hoy'}`];
+  }
+  return r;
+};
+
+/* ---------- alertas ---------- */
+function alertasLista(){
+  if(!DB) return [];
+  const out=[];
+  vis().forEach(t=>{
+    if(['entregado','cancelado'].includes(t.estado)) return;
+    const R=[];
+    if(t.estado==='enviado'&&t.llega){const d=diff(HOY,t.llega);if(d<0)R.push(['bad',`Laboratorio atrasado ${-d} día${d===-1?'':'s'}`]);else if(d===0)R.push(['warn','Llega hoy del laboratorio']);else if(d===1)R.push(['warn','Llega mañana del laboratorio'])}
+    if(t.fecha_entrega&&['capturado','enviado','recibido','garantia'].includes(t.estado)){const d=diff(HOY,t.fecha_entrega);if(d<0)R.push(['bad',`Entrega al paciente vencida hace ${-d} día${d===-1?'':'s'} (prometida ${fmt(t.fecha_entrega)})`]);else if(d<=1)R.push(['warn',`Se entrega al paciente ${d?'mañana':'hoy'} y aún no está listo`])}
+    if(t.estado==='capturado'&&pctPag(t)>=CFG.anticipo&&diff(t.fecha_venta,HOY)>=1)R.push(['bad',`Sin pedir al laboratorio desde hace ${diff(t.fecha_venta,HOY)} d`]);
+    if(t.estado==='recibido'&&ev(t,'recibido')&&diff(ev(t,'recibido'),HOY)>=1)R.push(['bad','Llegó y falta la revisión de calidad']);
+    if(t.estado==='listo'&&ev(t,'listo')&&diff(ev(t,'listo'),HOY)>=1)R.push(['bad','Listo y no se ha avisado al paciente']);
+    if(t.estado==='avisado'&&ev(t,'avisado')&&diff(ev(t,'avisado'),HOY)>30)R.push(['warn',`${diff(ev(t,'avisado'),HOY)} días sin recoger`]);
+    if(!t.hoja_archivo)R.push(['warn','Falta la hoja de laboratorio']);
+    if(R.length) out.push({t,nivel:R.some(x=>x[0]==='bad')?'bad':'warn',motivos:R,clave:t.id+':'+R.map(x=>x[1].replace(/\d+/g,'')).join('|')});
+  });
+  return out.sort((a,b)=>(a.nivel==='bad'?0:1)-(b.nivel==='bad'?0:1));
+}
+const ALV_KEY=()=>`coeopt-alv-${ME.id}-${iso(HOY)}`;
+function alertasVistas(){try{return new Set(JSON.parse(localStorage.getItem(ALV_KEY())||'[]'))}catch(e){return new Set()}}
+function mostrarAlertas(forzar){
+  if(!ME||ME.debe_cambiar||document.querySelector('.scrim.center[data-alertas]')) return;
+  const A=alertasLista(), vistas=alertasVistas();
+  const nuevas=A.filter(a=>!vistas.has(a.clave));
+  if(!forzar&&(!nuevas.length||!A.some(a=>a.nivel==='bad'||!vistas.has(a.clave)))) return;
+  if(!A.length){if(forzar)toast('Sin atrasos ni pendientes por atrasarse');return}
+  const bad=A.filter(a=>a.nivel==='bad').length, warn=A.length-bad;
+  const box=modal(`<div class="split"><h3>${bad?`${bad} atraso${bad>1?'s':''}`:''}${bad&&warn?' y ':''}${warn?`${warn} por atrasarse`:''}</h3><span class="tiny">${HOY.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</span></div>
+    <div class="alv">${A.map(a=>`<button class="alv-row ${a.nivel}" data-alv="${a.t.id}"><span class="av ${a.nivel}">${esc(iniciales(a.t.paciente_nombre))}</span><span style="min-width:0;text-align:left"><b>${esc(a.t.paciente_nombre)}</b> <span class="tiny">· venta ${esc(a.t.venta)} · ${esc(a.t.laboratorio||'')}</span>${a.motivos.map(m=>`<span class="reason ${m[0]}" style="display:flex;margin-top:4px;width:fit-content">${esc(m[1])}</span>`).join('')}</span>${nuevas.includes(a)?'<span class="pill">Nuevo</span>':''}</button>`).join('')}</div>
+    <div class="actions"><button class="btn primary" data-k>Entendido</button></div>`,(e,b)=>{
+      const r=e.target.closest('[data-alv]'); if(r){b.remove();guardarVistas(A);openJob(r.dataset.alv)}
+    });
+  box.dataset.alertas='1';
+  box.addEventListener('click',e=>{if(e.target===box||e.target.closest('[data-k]'))guardarVistas(A)});
+}
+function guardarVistas(A){try{const s=alertasVistas();A.forEach(a=>s.add(a.clave));localStorage.setItem(ALV_KEY(),JSON.stringify([...s]))}catch(e){}}
+
+/* ---------- botón grande de Nuevo trabajo, campana y pestañas nuevas ---------- */
+TABSET.ventas=[['tablero','Inicio'],['trabajos','Trabajos'],['hojas','Hojas lab'],['expediente','Expediente'],['pedidos','Pedidos'],['posventa','Posventa'],['crm','CRM'],['comisiones','Mis comisiones']];
+TABSET.admin=[['resumen','Resumen'],['trabajos','Trabajos'],['hojas','Hojas lab'],['expediente','Expediente'],['tickets','Tickets'],['posventa','Posventa'],['crm','CRM'],['comisiones','Comisiones'],['referidos','Referidos'],['config','Configuración']];
+TABSET.contabilidad=[['resumen','Resumen'],['trabajos','Trabajos'],['hojas','Hojas lab'],['tickets','Tickets'],['comisiones','Comisiones']];
+TAB_ICON.hojas='file'; TAB_ICON.crm='users'; TAB_SHORT.hojas='Hojas'; TAB_SHORT.expediente='Exped.';
+const renderBase=render;
+render=function(){
+  renderBase();
+  const fab=document.getElementById('fab'), bell=document.getElementById('hdrBell');
+  const puede=ME&&!ME.debe_cambiar&&(ME.rol==='ventas'||ME.rol==='admin');
+  if(fab) fab.hidden=!puede||VIEW==='nuevo';
+  if(bell){bell.hidden=!ME||ME.debe_cambiar;if(ME&&DB){const A=alertasLista();const n=A.filter(a=>a.nivel==='bad').length;bell.querySelector('.n').textContent=A.length;bell.querySelector('.n').hidden=!A.length;bell.classList.toggle('hot',n>0)}}
+};
+document.getElementById('fab').addEventListener('click',()=>{resetNew();VIEW='nuevo';render();window.scrollTo(0,0)});
+document.getElementById('hdrBell').addEventListener('click',()=>mostrarAlertas(true));
+
+/* subir un documento suelto */
+function modalDoc(titulo,onPath){
+  let file=null;
+  const box=modal(`<h3>${esc(titulo)}</h3><label class="drop" style="padding:18px"><span class="ic">${ico('upload')}</span><input type="file" accept="image/*,application/pdf" id="dc-file"><span class="tiny">PDF o foto</span></label>
+    <div class="actions"><button class="btn primary" data-ok disabled>Guardar</button><button class="btn" data-k>Cancelar</button></div>`,async(e,b)=>{
+      if(!e.target.closest('[data-ok]')) return; const btn=b.querySelector('[data-ok]');btn.disabled=true;btn.textContent='Subiendo…';
+      try{const path=await subirArchivo(file);b.remove();await onPath(path)}catch(err){btn.disabled=false;btn.textContent='Guardar';toast(cleanErr(err),true)}
+    });
+  box.querySelector('#dc-file').addEventListener('change',e=>{file=e.target.files[0];box.querySelector('[data-ok]').disabled=!file});
+}
+
+/* ---------- pestaña: hojas de laboratorio ---------- */
+let HJ={q:'',f:'curso'};
+function rxMini(t){const r=e=>t.rx[e]||[];return `<div class="tbl-wrap"><table class="mini"><thead><tr><th></th><th>Esf</th><th>Cil</th><th>Eje</th><th>Add</th><th>DNP</th><th>Alt</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e==='od'?'OD':'OI'}</b></td>${[0,1,2,3,4,5].map(i=>`<td class="rx">${esc(r(e)[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+VISTAS.hojas=function(){
+  const q=HJ.q.toLowerCase();
+  let L=vis().filter(t=>!q||(t.paciente_nombre+' '+t.venta+' '+(t.id_trabajo||'')).toLowerCase().includes(q));
+  const cnt={curso:L.filter(t=>t.estado!=='entregado').length,falta:L.filter(t=>!t.hoja_archivo).length,todas:L.length};
+  if(HJ.f==='curso') L=L.filter(t=>t.estado!=='entregado'); else if(HJ.f==='falta') L=L.filter(t=>!t.hoja_archivo);
+  const puede=ME.rol!=='contabilidad';
+  return `<h1>Hojas de laboratorio</h1><p class="sub">La hoja de eOptics de cada trabajo, con su graduación y medidas.</p>
+  <div class="toolbar" style="margin-top:12px"><input id="hjq" type="search" placeholder="Buscar paciente, venta o ID de trabajo" value="${esc(HJ.q)}" aria-label="Buscar hoja"></div>
+  <div class="seg" style="margin-top:12px">${[['curso','En curso'],['falta','Falta hoja'],['todas','Todas']].map(([k,l])=>`<button aria-pressed="${HJ.f===k}" data-hjf="${k}">${k==='falta'&&cnt.falta?'<span class="pri d-bad" style="width:8px;height:8px"></span>':''}${l}<span class="c">${cnt[k]}</span></button>`).join('')}</div>
+  <div class="lane" style="margin-top:12px">${L.map(t=>{const [l,w]=sem(t);return `<div class="card hojac">
+    <div class="split"><div style="min-width:0"><b>${esc(t.paciente_nombre)}</b><div class="tiny">Venta ${esc(t.venta)} · Trabajo ${esc(t.id_trabajo||'—')} · ${esc(t.tipo)} · ${esc(t.material)} · ${esc(t.laboratorio||'')}</div></div><div class="chips"><span class="pill">${ENOM[t.estado]}</span>${t.fecha_entrega?`<span class="pill ${prometidaVencida(t)?'bad':'mute'}">Entrega ${fmt(t.fecha_entrega)}</span>`:''}</div></div>
+    ${rxMini(t)}
+    <div class="actions">${t.hoja_archivo?`<button class="btn sm primary" data-ver="${esc(t.hoja_archivo)}">${ico('eye','sm')}Ver hoja de eOptics</button>`:`<span class="pill bad">Falta la hoja</span>`}${puede?`<button class="btn sm" data-hjsub="${t.id}">${ico('upload','sm')}${t.hoja_archivo?'Reemplazar':'Subir hoja'}</button>`:''}<button class="btn sm" data-hjprint="${t.id}">${ico('print','sm')}Hoja COE</button><button class="btn sm" data-open="${t.id}">Ver trabajo</button></div>
+  </div>`}).join('')||'<div class="empty">Sin hojas en este grupo.</div>'}</div>`;
+};
+
+/* ---------- CRM: promociones por tamiz ---------- */
+const TAMICES={
+  presbicia:{n:'Presbicia sin progresivo',d:'40 años o más y su último lente no es progresivo.',msg:'Hola {nombre}, en el Centro Ocular Especializado tenemos una promoción en lentes progresivos para ver de lejos, intermedio y cerca con un solo lente. ¿Le gustaría conocerla?'},
+  sincompra:{n:'Se graduaron y no compraron',d:'Tienen graduación en el expediente y ningún trabajo de óptica.',msg:'Hola {nombre}, su graduación del Centro Ocular Especializado sigue vigente. Este mes tenemos una promoción en lentes completos. ¿Le apartamos una cita en la óptica?'},
+  anual:{n:'Revisión anual vencida',d:'Su última graduación tiene 12 meses o más.',msg:'Hola {nombre}, ya pasó un año de su última revisión de la vista. Le invitamos a revisarse para confirmar su graduación. ¿Le agendamos?'},
+  renov:{n:'Renovación de lentes',d:'Su última compra fue hace 18 meses o más.',msg:'Hola {nombre}, sus lentes ya tienen buen tiempo de uso. Este mes tenemos promoción en renovación de micas y armazones.'},
+  segundo:{n:'Segundo par',d:'Compraron en los últimos 6 meses: lentes de sol graduados o de computadora.',msg:'Hola {nombre}, gracias por su compra. Este mes tenemos descuento en su segundo par: lentes de sol graduados o para computadora.'},
+  lc:{n:'Lentes de contacto',d:'Han comprado lentes de contacto.',msg:'Hola {nombre}, tenemos promoción en lentes de contacto y solución este mes. ¿Le apartamos sus cajas?'},
+  consulta:{n:'Necesitan consulta oftalmológica',d:'Diagnóstico de catarata, glaucoma, retinopatía, queratocono o pterigión, o capacidad visual menor a 20/40.',msg:'Hola {nombre}, en su última revisión encontramos datos que conviene valorar en consulta con oftalmología. ¿Le agendamos una cita en el Centro Ocular Especializado?'},
+  todos:{n:'Todos',d:'Todos los pacientes con teléfono.',msg:'Hola {nombre}, le saluda la óptica del Centro Ocular Especializado.'}
+};
+let CRM={t:'presbicia',emin:'',emax:'',dx:'',tipo:'',msin:'',msg:'',campana:''};
+function personas(){
+  const map=new Map();
+  DB.pacientes.forEach(p=>{const ex=p.examenes[0];map.set(p.id,{id:p.id,nombre:p.nombre,tel:p.telefono||'',edad:p.nacimiento?edad(p.nacimiento):null,ex,ultGrad:ex?toD(ex.fecha):null,dx:ex?(ex.dx||[]):[],trabajos:[]})});
+  DB.trabajos.forEach(t=>{let k=t.paciente_id&&map.has(t.paciente_id)?t.paciente_id:null;
+    if(!k){const p=[...map.values()].find(x=>x.nombre.trim().toLowerCase()===t.paciente_nombre.trim().toLowerCase());k=p?p.id:'n:'+t.paciente_nombre.toLowerCase()}
+    if(!map.has(k)) map.set(k,{id:k,nombre:t.paciente_nombre,tel:t.telefono||'',edad:null,ex:null,ultGrad:null,dx:[],trabajos:[]});
+    const p=map.get(k); p.trabajos.push(t); if(!p.tel&&t.telefono)p.tel=t.telefono;});
+  return [...map.values()].map(p=>{const tr=p.trabajos.slice().sort((a,b)=>toD(b.fecha_venta)-toD(a.fecha_venta));const u=tr[0];
+    return {...p,ultCompra:u?toD(u.fecha_venta):null,tipoUlt:u?u.tipo:'',gastado:tr.reduce((s,t)=>s+total(t),0),lc:tr.some(t=>/contacto/i.test(t.tipo||'')),ref:p.ex?referir(p.ex):''}});
+}
+const meses=d=>d?(HOY-d)/(30.44*dayMs):Infinity;
+function crmFiltra(P){
+  const t=CRM.t;
+  let L=P.filter(p=>/^\d{10}$/.test(String(p.tel).replace(/\D/g,'')));
+  if(t==='presbicia') L=L.filter(p=>p.edad!=null&&p.edad>=40&&p.tipoUlt!=='Progresivo');
+  if(t==='sincompra') L=L.filter(p=>p.ex&&!p.trabajos.length);
+  if(t==='anual') L=L.filter(p=>p.ultGrad&&meses(p.ultGrad)>=12);
+  if(t==='renov') L=L.filter(p=>p.ultCompra&&meses(p.ultCompra)>=18);
+  if(t==='segundo') L=L.filter(p=>p.ultCompra&&meses(p.ultCompra)<=6);
+  if(t==='lc') L=L.filter(p=>p.lc);
+  if(t==='consulta') L=L.filter(p=>p.ref);
+  if(CRM.emin!=='') L=L.filter(p=>p.edad!=null&&p.edad>=+CRM.emin);
+  if(CRM.emax!=='') L=L.filter(p=>p.edad!=null&&p.edad<=+CRM.emax);
+  if(CRM.dx) L=L.filter(p=>p.dx.some(d=>d.startsWith(CRM.dx)));
+  if(CRM.tipo) L=L.filter(p=>p.tipoUlt===CRM.tipo);
+  if(CRM.msin!=='') L=L.filter(p=>meses(p.ultCompra)>=+CRM.msin);
+  return L.sort((a,b)=>a.nombre.localeCompare(b.nombre));
+}
+const campanaClave=()=>(CRM.campana||TAMICES[CRM.t].n+' '+HOY.toLocaleDateString('es-MX',{month:'short',year:'numeric'})).toLowerCase().normalize('NFD').replace(/[^\w]+/g,'-');
+VISTAS.crm=function(){
+  const P=personas(), L=crmFiltra(P), tz=TAMICES[CRM.t];
+  if(!CRM.msg) CRM.msg=tz.msg;
+  const ck=campanaClave(), R=DB.posventa||{};
+  const hechos=L.filter(p=>R['promo:'+ck+':'+p.id]).length;
+  return `<h1>CRM · promociones</h1><p class="sub">Elija un tamiz, ajuste el mensaje y contacte por WhatsApp. Cada contacto queda registrado en la campaña.</p>
+  <div class="chips" style="margin-top:12px">${Object.entries(TAMICES).map(([k,v])=>`<button class="chip" aria-pressed="${CRM.t===k}" data-tz="${k}">${v.n} <span class="c">${crmCount(P,k)}</span></button>`).join('')}</div>
+  <p class="tiny">${esc(tz.d)}</p>
+  <details class="card" ${CRM.emin||CRM.emax||CRM.dx||CRM.tipo||CRM.msin?'open':''}><summary><b>Afinar el tamiz</b></summary><div class="fields" style="margin-top:10px">
+    <div class="f"><label for="crm-emin">Edad desde</label><input id="crm-emin" data-crm="emin" inputmode="numeric" value="${esc(CRM.emin)}"></div>
+    <div class="f"><label for="crm-emax">Edad hasta</label><input id="crm-emax" data-crm="emax" inputmode="numeric" value="${esc(CRM.emax)}"></div>
+    <div class="f"><label for="crm-dx">Diagnóstico</label><select id="crm-dx" data-crm="dx"><option value="">Cualquiera</option>${DXS.map(d=>`<option ${CRM.dx===d?'selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="f"><label for="crm-tipo">Último lente</label><select id="crm-tipo" data-crm="tipo"><option value="">Cualquiera</option>${TIPOS.map(d=>`<option ${CRM.tipo===d?'selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="f"><label for="crm-msin">Meses sin comprar (mínimo)</label><input id="crm-msin" data-crm="msin" inputmode="numeric" value="${esc(CRM.msin)}"></div>
+  </div></details>
+  <div class="card"><div class="fields"><div class="f w2"><label for="crm-camp">Campaña</label><input id="crm-camp" data-crm="campana" placeholder="${esc(tz.n)} ${HOY.toLocaleDateString('es-MX',{month:'short',year:'numeric'})}" value="${esc(CRM.campana)}"></div></div>
+    <div class="f"><label for="crm-msg">Mensaje ({nombre} se cambia por el nombre del paciente)</label><textarea id="crm-msg" data-crm="msg" rows="3">${esc(CRM.msg)}</textarea></div>
+    <div class="split"><span class="tiny"><b>${L.length}</b> paciente${L.length===1?'':'s'} · ${hechos} contactado${hechos===1?'':'s'} en esta campaña</span><div class="actions"><button class="btn sm" data-crmcsv>Copiar lista</button></div></div></div>
+  <div class="lane">${L.map(p=>{const h=R['promo:'+ck+':'+p.id];return `<div class="task pv" style="cursor:default"><span class="av ${h?'ok':'warn'}">${esc(iniciales(p.nombre))}</span><div style="min-width:0"><div class="t1">${esc(p.nombre)}</div><div class="t2"><span>${p.edad!=null?p.edad+' años · ':''}${esc(fmtTel(p.tel))}${p.ultCompra?' · compró '+fmtY(p.ultCompra)+' ('+esc(p.tipoUlt)+')':' · sin compras'}${p.ultGrad?' · graduó '+fmtY(p.ultGrad):''}</span>${p.dx.slice(0,3).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div><div class="actions" style="justify-content:flex-end">${h?`<span class="pill ok">${esc(h.resultado)}</span>`:''}<button class="btn wa sm" data-crmwa="${esc(p.id)}">WhatsApp</button></div></div>`}).join('')||'<div class="empty">Nadie cumple este tamiz.</div>'}</div>`;
+};
+function crmCount(P,k){const keep=CRM.t;CRM.t=k;const n=crmFiltra(P).length;CRM.t=keep;return n}
+
+/* ---------- Resumen de Administración ---------- */
+VISTAS.resumen=function(){
+  const L=vis(); const ini=new Date(HOY.getFullYear(),HOY.getMonth(),1);
+  const mes=L.filter(t=>toD(t.fecha_venta)>=ini); const ventas=mes.reduce((s,t)=>s+total(t),0);
+  const porCobrar=L.filter(t=>t.estado!=='entregado').reduce((s,t)=>s+saldo(t),0);
+  const porVerif=DB.trabajos.flatMap(t=>t.pagos).filter(p=>!p.verificado).length;
+  const A=alertasLista();
+  const labs=(CFG.labs||[]).map(l=>l.nombre); DB.trabajos.forEach(t=>{if(t.laboratorio&&!labs.includes(t.laboratorio))labs.push(t.laboratorio)});
+  const fila=n=>{const ts=L.filter(t=>t.laboratorio===n);const c=k=>ts.filter(t=>t.estado===k).length;
+    const atr=ts.filter(t=>t.estado==='enviado'&&t.llega&&diff(HOY,t.llega)<0).length;
+    const prox=ts.filter(t=>t.estado==='enviado'&&t.llega&&diff(HOY,t.llega)>=0&&diff(HOY,t.llega)<=1).length;
+    const hechos=DB.trabajos.filter(t=>t.laboratorio===n&&ev(t,'enviado')&&ev(t,'recibido'));
+    const dias=hechos.length?hechos.reduce((s,t)=>s+diff(ev(t,'enviado'),ev(t,'recibido')),0)/hechos.length:null;
+    const atiempo=hechos.length?hechos.filter(t=>!t.llega||ev(t,'recibido')<=addDays(t.llega,0.99)).length/hechos.length*100:null;
+    return `<tr><td><b>${esc(n)}</b></td><td class="num">${c('capturado')}</td><td class="num">${c('enviado')}</td><td class="num">${atr?`<span class="pill bad">${atr}</span>`:0}</td><td class="num">${prox?`<span class="pill warn">${prox}</span>`:0}</td><td class="num">${c('recibido')}</td><td class="num">${c('garantia')?`<span class="pill bad">${c('garantia')}</span>`:0}</td><td class="num">${dias==null?'—':dias.toFixed(1)}</td><td class="num">${atiempo==null?'—':Math.round(atiempo)+'%'}</td></tr>`};
+  const PV=posventaLista(), pvp=PV.filter(p=>!p.hecho);
+  const porMotivo=Object.entries(pvp.reduce((o,p)=>{o[p.key]=(o[p.key]||0)+1;return o},{}));
+  const P=personas();
+  return `<div class="hello"><div><div class="datel">${HOY.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}).replace(/^./,c=>c.toUpperCase())}</div><h1>Resumen de la óptica</h1></div></div>
+  ${bajasPanel()}
+  <div class="section"><div class="pipe" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+   ${tile('Ventas del mes',money(ventas),`${mes.length} trabajos · ticket promedio ${money(mes.length?ventas/mes.length:0)}`)}
+   ${tile('Saldo por cobrar',money(porCobrar),'en trabajos no entregados')}
+   ${tile('Atrasos',A.filter(a=>a.nivel==='bad').length,`${A.filter(a=>a.nivel==='warn').length} por atrasarse`)}
+   ${tile('Pagos por verificar',porVerif,'cotejar contra el ticket')}
+  </div></div>
+  <div class="section"><div class="split"><h2>Por laboratorio</h2><span class="tiny">Atrasado: pasó la fecha de llegada. Próximos: llegan hoy o mañana.</span></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Laboratorio</th><th class="num">Por pedir</th><th class="num">En laboratorio</th><th class="num">Atrasados</th><th class="num">Próximos</th><th class="num">Por revisar</th><th class="num">Garantías</th><th class="num">Días promedio</th><th class="num">A tiempo</th></tr></thead><tbody>${labs.map(fila).join('')}</tbody></table></div></div>
+  <div class="section"><div class="grid2">
+   <div class="panel"><div class="panel-head"><h3>Alertas</h3><span class="count ${A.some(a=>a.nivel==='bad')?'bad':A.length?'warn':''}">${A.length}</span></div>
+    ${A.slice(0,8).map(a=>`<div class="row" data-open="${a.t.id}"><span class="stripe s-${a.nivel}"></span><div style="min-width:0"><div class="nm">${esc(a.t.paciente_nombre)}</div><div class="meta">${esc(a.motivos.map(m=>m[1]).join(' · '))}</div></div><div class="why ${a.nivel}">${esc(a.t.laboratorio||'')}</div></div>`).join('')||'<div class="empty">Sin alertas.</div>'}
+    ${A.length>8?`<div class="actions"><button class="btn sm" data-verale>Ver las ${A.length}</button></div>`:''}</div>
+   <div class="panel"><div class="panel-head"><h3>Re-contacto</h3><span class="count ${pvp.length?'warn':''}">${pvp.length}</span></div>
+    ${porMotivo.length?`<dl class="kv">${porMotivo.map(([k,n])=>`<dt>${esc(MOTIVOS[k]||k)}</dt><dd>${n}</dd>`).join('')}</dl>`:'<div class="empty">Sin contactos pendientes hoy.</div>'}
+    <div class="actions"><button class="btn sm" data-go="posventa">Abrir posventa</button></div>
+    <h3 style="margin-top:6px">CRM · tamices</h3>
+    <dl class="kv">${['presbicia','sincompra','anual','renov','consulta'].map(k=>`<dt>${TAMICES[k].n}</dt><dd>${crmCount(P,k)}</dd>`).join('')}</dl>
+    <div class="actions"><button class="btn sm" data-go="crm">Abrir CRM</button></div></div>
+  </div></div>
+  ${bajasHistorial()}
+  <div class="section"><h2>Trabajos en curso</h2><nav class="flow" aria-label="Trabajos por etapa">${GRUPOS.filter(g=>g[0]!=='entregado').map(([k,lab])=>{const g=L.filter(t=>t.estado===k);return `<button data-filter="${k}"><span class="fn">${g.length}</span><span class="fl">${lab}</span>${g.some(t=>sem(t)[0]==='bad')?'<span class="fd d-bad"></span>':''}</button>`}).join('')}</nav></div>`;
+};
+
+/* ---------- eventos de este módulo ---------- */
+document.getElementById('main').addEventListener('click',async e=>{
+  const C=s=>e.target.closest(s); let el;
+  if(el=C('[data-hjf]')){HJ.f=el.dataset.hjf;render();return}
+  if(el=C('[data-hjsub]')){modalHoja(DB.trabajos.find(x=>x.id===el.dataset.hjsub));return}
+  if(el=C('[data-hjprint]')){imprimir(hojaLab(DB.trabajos.find(x=>x.id===el.dataset.hjprint)));return}
+  if(el=C('[data-tz]')){CRM.t=el.dataset.tz;CRM.msg=TAMICES[CRM.t].msg;CRM.campana='';render();return}
+  if(C('[data-verale]')){mostrarAlertas(true);return}
+  if(el=C('[data-crmwa]')){const p=personas().find(x=>String(x.id)===el.dataset.crmwa);const txt=CRM.msg.replace(/\{nombre\}/g,LECT.titulo(p.nombre.split(' ')[0]))+'\n'+clinic();
+    const clave='promo:'+campanaClave()+':'+p.id;
+    mensajeWA(txt,p.tel,()=>act('posventa_resultado',{clave,motivo:'promo',paciente:p.nombre,resultado:'Mensaje enviado'}));return}
+  if(C('[data-crmcsv]')){const L=crmFiltra(personas());const txt='Nombre,Teléfono,Edad,Última compra,Último lente\n'+L.map(p=>[p.nombre,p.tel,p.edad??'',p.ultCompra?iso(p.ultCompra):'',p.tipoUlt].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+    navigator.clipboard?.writeText(txt).then(()=>toast(`Lista de ${L.length} copiada; péguela en Excel`),()=>toast('No se pudo copiar',true));return}
+});
+document.getElementById('main').addEventListener('input',e=>{
+  const el=e.target;
+  if(el.id==='hjq'){HJ.q=el.value;const p=el.selectionStart;render();const n=document.getElementById('hjq');n.focus();n.setSelectionRange(p,p);return}
+  if(el.matches('[data-crm]')){CRM[el.dataset.crm]=el.value;if(el.dataset.crm==='msg'||el.dataset.crm==='campana')return;}
+});
+document.getElementById('main').addEventListener('change',e=>{if(e.target.matches('[data-crm]')&&!['msg'].includes(e.target.dataset.crm))render()});
 
 </script>
 </body>

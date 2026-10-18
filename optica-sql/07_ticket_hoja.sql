@@ -1,0 +1,4 @@
+-- Aplicado como opt_07_ticket_hoja_garantia y opt_08_trabajo_nuevo (17 oct 2026).
+-- Pagos con folio de eOptics (sin duplicados por trabajo), hoja de laboratorio, fecha de entrega,
+-- productos del ticket y formato de garantía. opt_trabajo_nuevo crea el trabajo con todos los pagos del ticket.
+-- opt_docs: 'hoja' (sube/reemplaza hoja), 'ticket' (registra solo pagos nuevos por folio), 'garantia_doc'.
