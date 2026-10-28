@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.6 · 25 oct 2026 · Captura a mano con segunda firma del Director o la Subdirectora -->
+<!-- COE Conciliación · v3.7 · 28 oct 2026 · Completar turnos Sin cierre y cierre del día atrasado -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.6 · 25 oct 2026';
+const VERSION = 'v3.7 · 28 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -563,12 +563,12 @@ async function hashArchivo(file){
 async function subirComprobantes(files, destino){
   for(const f of files){
     const hash = await hashArchivo(f);
-    const carpeta = destino.turno || ('dia-' + destino.dia + '-' + hoyISO());
+    const carpeta = destino.turno || ('dia-' + destino.dia + '-' + (destino.fecha || hoyISO()));
     const path = await subirArchivo(carpeta, 'doc', f);
     const url = (await urlsFirmadas([path]))[path];
     try{
       if(destino.turno) await rpc('con_registrar_evidencia', {p_turno:destino.turno, p_tipo:'auto', p_archivo:path, p_url:url, p_hash:hash});
-      else await rpc('con_dia_subir', {p_sucursal:destino.dia, p_archivo:path, p_url:url, p_hash:hash});
+      else await rpc('con_dia_subir_f', {p_sucursal:destino.dia, p_archivo:path, p_url:url, p_hash:hash, p_fecha:destino.fecha||null});
     }catch(e){ toast(e.message, true); }
   }
 }
@@ -692,34 +692,53 @@ async function firmarEnterado(p){
     m.remove(); toast('Listo.'); revisarPendientes(false);
   });
 }
-async function vistaAclarar(id){
+async function vistaAclarar(id, volver){
   clearTimeout(sondeo);
   let t, evs;
   try{ t = await rpc('con_turno', {p_turno:id}); evs = await rpc('con_lectura', {p_turno:id}); }catch(e){ return toast(e.message,true); }
+  const ir = volver || (() => cargar());
+  if(t.estado!=='sin_cierre'){ toast('Ese turno ya está cerrado.'); return ir(); }
+  const yo = S.estado.usuario, mio = t.usuario_id===yo.id || t.responsable_id===yo.id;
   const visibles = evs.filter(e => !['descartado','gasto','otro'].includes(e.tipo) && e.estado!=='descartado' && e.estado!=='no_aplica');
-  const pend = visibles.some(e=>e.estado==='pendiente');
-  const nota = $('#acl')?.value || '';
+  const pend = visibles.some(e=>e.estado==='pendiente'), errs = visibles.some(e=>e.estado==='error');
+  const eo = visibles.some(e=>e.tipo==='eoptics' && e.estado==='ok');
+  const nota = $('#acl')?.value || '', fondoTxt = $('#aff')?.value ?? '';
+  const directo = t.modo==='deposito_directo';
   app.innerHTML = `
-    <button class="btn sec chico" id="volver">Inicio</button>
-    <h1 style="margin-top:14px">Aclarar corte</h1>
-    <p class="sub">${esc(t.caja)} · Turno ${turnoTxt(t.turno)} ${fechaCorta(t.fecha)}</p>
+    <button class="btn sec chico" id="volver">Volver</button>
+    <h1 style="margin-top:14px">Completar corte</h1>
+    <p class="sub">${esc(t.caja)} · Turno ${turnoTxt(t.turno)} ${fechaCorta(t.fecha)} · ${esc(t.usuario)}</p>
     <div class="aviso mal">${esc(t.justificacion||'El turno se cerró sin corte.')}</div>
-    <h2>Comprobantes que falten</h2>
+    <p class="sub">Sube los comprobantes de <b>ese día</b>: el corte de eOptics del turno y los depósitos, vouchers o transferencias. Luego firma para que el sistema calcule si cuadró. Quedará marcado como <b>cerrado tarde</b>.</p>
     ${botonSubir('subA')}
     <div class="card">${visibles.length ? visibles.map(e=>filaDoc(e,true)).join('') : '<p class="sub" style="margin:0">Aún no hay comprobantes en este turno.</p>'}</div>
+    ${directo ? '' : `<label for="aff">Efectivo que quedó en caja al cerrar ese turno</label>
+      <input id="aff" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Si no se contó, déjalo vacío" value="${esc(fondoTxt)}">
+      <p class="sub" style="margin-top:4px">Vacío = se toma el fondo con que se abrió el turno siguiente.</p>`}
     <h2>¿Qué pasó?</h2>
-    <textarea id="acl" placeholder="Explica por qué no se hizo el corte">${esc(nota)}</textarea>
-    ${acciones('<button class="btn" id="firmarA">Firmar aclaración</button>')}`;
-  $('#volver').onclick = () => cargar();
-  $('#subA').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast('Subiendo…'); await subirComprobantes(fs,{turno:id}); vistaAclarar(id); };
-  conectarDocs(app, () => vistaAclarar(id));
-  $('#firmarA').onclick = () => ocupado($('#firmarA'), async () => {
+    <textarea id="acl" placeholder="Explica por qué no se hizo el corte a tiempo">${esc(nota || t.aclaracion || '')}</textarea>
+    ${acciones(`<button class="btn" id="completar" ${eo && !pend && !errs ? '' : 'disabled'}>${pend?'Leyendo comprobantes…':errs?'Resuelve los comprobantes con error':!eo?'Falta el corte de eOptics':'Completar y firmar'}</button>`
+      + (mio && !t.aclarado_en ? '<button class="btn sec" id="firmarA" style="margin-top:8px">Solo enviar explicación</button>' : ''))}`;
+  $('#volver').onclick = () => { clearTimeout(sondeo); ir(); };
+  $('#subA').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast('Subiendo…'); await subirComprobantes(fs,{turno:id}); vistaAclarar(id, volver); };
+  conectarDocs(app, () => vistaAclarar(id, volver));
+  $('#completar').onclick = () => ocupado($('#completar'), async () => {
+    const texto = $('#acl').value.trim(); if(!texto) throw new Error('Explica por qué el corte se completa tarde.');
+    const ffv = $('#aff') ? $('#aff').value.trim() : '';
+    const pin = await pedirPin('Completar corte', directo ? 'Se calcula con los comprobantes subidos.' : (ffv ? `Efectivo en caja: <b>${money(ffv)}</b>.` : 'Se tomará el fondo del turno siguiente.')); if(!pin) return;
+    const r = await rpc('con_completar_corte', {p_turno:id, p_fondo_final: ffv==='' ? null : Number(ffv), p_justificacion:texto, p_pin:pin});
+    if(!r.ok) throw new Error(r.error);
+    const res = {cuadrado:'Cuadró', faltante:'Faltante de '+money(Math.abs(r.dif_total)), sobrante:'Sobrante de '+money(r.dif_total), revisar:'Diferencias que se compensan'}[r.estado];
+    toast('Corte completado: ' + res + '. Se avisó a la Dirección.');
+    clearTimeout(sondeo); ir();
+  });
+  if($('#firmarA')) $('#firmarA').onclick = () => ocupado($('#firmarA'), async () => {
     const texto = $('#acl').value.trim(); if(!texto) throw new Error('Escribe qué pasó con este corte.');
     const pin = await pedirPin('Firmar aclaración'); if(!pin) return;
     const r = await rpc('con_aclarar', {p_turno:id, p_texto:texto, p_pin:pin}); if(!r.ok) throw new Error(r.error);
-    toast('Aclaración enviada a la Dirección.'); cargar();
+    toast('Aclaración enviada a la Dirección.'); ir();
   });
-  if(pend) sondeo = setTimeout(() => { if($('#firmarA')) vistaAclarar(id); }, 3000);
+  if(pend) sondeo = setTimeout(() => { if($('#completar')) vistaAclarar(id, volver); }, 3000);
 }
 
 // ===================== Abrir turno =====================
@@ -1534,22 +1553,28 @@ async function compartirReporte(id){
 }
 
 // ===================== Cierre del día =====================
-async function vistaDia(suc){
+async function vistaDia(suc, fecha){
   clearTimeout(sondeo);
-  let d; try{ d = await rpc('con_dia', {p_sucursal:suc}); }catch(e){ return toast(e.message,true); }
+  let d, pendDias = [];
+  try{ d = await rpc('con_dia_f', {p_sucursal:suc, p_fecha:fecha||null}); }catch(e){ return toast(e.message,true); }
+  if(!fecha){ try{ pendDias = await rpc('con_dia_pendientes', {p_sucursal:suc}); }catch{} }
   const evs = d.evidencias.filter(e => e.estado!=='descartado');
   const corte = evs.filter(e=>e.estado==='ok').slice(-1)[0];
   const suma = d.turnos.reduce((s,x)=>s+Number(x.depositos||0),0);
-  const abiertos = d.turnos.filter(x=>x.estado==='abierto');
+  const abiertos = d.turnos.filter(x=>x.estado==='abierto'), sinCierre = d.turnos.filter(x=>x.estado==='sin_cierre');
   const pend = evs.some(e=>e.estado==='pendiente');
   const firmado = d.cierre && d.cierre.estado!=='abierto';
   const dif = corte ? Number(corte.lectura?.total||0) - suma : null;
   const coincide = dif!==null && Math.abs(dif) <= Number(d.tolerancia||0);
   app.innerHTML = `
-    <div class="cabturno"><div><h1>Cierre del día</h1><p class="sub">${esc(d.sucursal)} · ${fechaCorta(d.fecha)}</p></div><button class="btn sec chico" id="volver">Inicio</button></div>
+    <div class="cabturno"><div><h1>${d.tardio?'Cierre del día atrasado':'Cierre del día'}</h1><p class="sub">${esc(d.sucursal)} · ${fechaCorta(d.fecha)}</p></div><button class="btn sec chico" id="volver">${fecha?'Hoy':'Inicio'}</button></div>
+    ${d.tardio ? '<div class="aviso ojo">Este día no se cerró a tiempo. Al firmarlo quedará marcado como <b>cierre tardío</b> y se avisa a la Dirección.</div>' : ''}
+    ${pendDias.length ? `<div class="aviso mal"><b>${pendDias.length===1?'Hay un día anterior sin cierre del día':'Hay '+pendDias.length+' días anteriores sin cierre del día'}</b>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${pendDias.map(p=>`<button class="btn sec chico" data-pdia="${p.fecha}">${fechaCorta(p.fecha).slice(0,5)}${p.sin_cierre?' · '+p.sin_cierre+' sin cierre':''}</button>`).join('')}</div></div>` : ''}
     <p class="sub" style="margin-top:10px">Sube el corte final del depositador. El sistema lo compara con los depósitos de farmacia más el efectivo que eOptics registró en los turnos de clínica.</p>
-    <div class="card">${d.turnos.length ? d.turnos.map(x=>`<div class="row"><span>${esc(x.caja)} · ${NOMBRE_TURNO[x.turno]}${x.directo?' <span class="sub">(efectivo eOptics)</span>':''}${x.estado==='abierto'?' <span class="chip abierto">Abierto</span>':''}</span><b>${money(x.depositos)}</b></div>`).join('') : '<p class="sub" style="margin:0">Hoy no hay turnos.</p>'}
+    <div class="card">${d.turnos.length ? d.turnos.map(x=>`<div class="row"><span>${esc(x.caja)} · ${NOMBRE_TURNO[x.turno]}${x.directo?' <span class="sub">(efectivo eOptics)</span>':''}${x.estado==='abierto'?' <span class="chip abierto">Abierto</span>':''}${x.estado==='sin_cierre'?` <button class="chip sin_cierre" data-compl="${x.id}" style="border:0;cursor:pointer">Sin cierre · completar</button>`:''}${x.tarde?' <span class="chip revisar">Cerrado tarde</span>':''}</span><b>${money(x.depositos)}</b></div>`).join('') : '<p class="sub" style="margin:0">Hoy no hay turnos.</p>'}
       <div class="row" style="font-size:16px"><b>Total esperado en el depositador</b><b>${money(suma)}</b></div></div>
+    ${sinCierre.length ? `<div class="aviso mal">${sinCierre.length===1?'Un turno quedó':sinCierre.length+' turnos quedaron'} "Sin cierre". Complétalo con sus comprobantes (toca el turno) antes de firmar el día.</div>` : ''}
     ${abiertos.length ? `<div class="aviso mal">Aún hay ${abiertos.length===1?'un turno abierto':abiertos.length+' turnos abiertos'}. Deben cerrarse antes de firmar el cierre del día.</div>` : ''}
     ${firmado ? '' : `<div style="margin-top:12px">${botonSubir('subD','Subir corte final del depositador','El ticket que imprime el depositador al final del día')}</div>`}
     ${evs.length ? `<div class="card">${evs.map(e=>filaDoc(e,!firmado)).join('')}</div>` : ''}
@@ -1557,21 +1582,24 @@ async function vistaDia(suc){
       <span class="chip ${coincide?'cuadrado':'faltante'}">${coincide?'Coincide':'Diferencia '+money(dif)}</span></div>` : ''}
     ${corte && !coincide && !firmado ? `<label for="jd">Explica la diferencia</label><textarea id="jd"></textarea>` : ''}
     ${firmado ? `<div class="resultado ${d.cierre.estado==='cuadrado'?'cuadrado':'faltante'}" style="padding:18px"><div class="grande" style="font-size:28px">Cierre del día firmado</div></div>`
-      : acciones(`<button class="btn" id="firmarD" ${corte && !abiertos.length && !pend ? '' : 'disabled'}>${pend?'Leyendo…':!corte?'Falta el corte del depositador':abiertos.length?'Hay turnos abiertos':'Firmar cierre del día'}</button>`)}`;
-  $('#volver').onclick = () => cargar();
-  if($('#subD')) $('#subD').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast('Subiendo…'); await subirComprobantes(fs,{dia:suc}); vistaDia(suc); };
-  conectarDocs(app, () => vistaDia(suc), {dia:true});
+      : acciones(`<button class="btn" id="firmarD" ${corte && !abiertos.length && !sinCierre.length && !pend ? '' : 'disabled'}>${pend?'Leyendo…':!corte?'Falta el corte del depositador':abiertos.length?'Hay turnos abiertos':sinCierre.length?'Completa los turnos sin cierre':'Firmar cierre del día'}</button>`)}`;
+  $('#volver').onclick = () => fecha ? vistaDia(suc) : cargar();
+  app.querySelectorAll('[data-pdia]').forEach(b => b.onclick = () => vistaDia(suc, b.dataset.pdia));
+  app.querySelectorAll('[data-compl]').forEach(b => b.onclick = () => vistaAclarar(b.dataset.compl, () => vistaDia(suc, fecha)));
+  if($('#subD')) $('#subD').onchange = async e => { const fs=[...e.target.files]; if(!fs.length) return; toast('Subiendo…'); await subirComprobantes(fs,{dia:suc, fecha:fecha||null}); vistaDia(suc, fecha); };
+  conectarDocs(app, () => vistaDia(suc, fecha), {dia:true});
   if($('#firmarD')) $('#firmarD').onclick = () => ocupado($('#firmarD'), async () => {
     const just = $('#jd') ? $('#jd').value.trim() : null;
     if($('#jd') && !just) throw new Error('Escribe la explicación de la diferencia.');
     const pin = await pedirPin('Firmar cierre del día'); if(!pin) return;
-    const r = await rpc('con_dia_cerrar', {p_sucursal:suc, p_justificacion:just, p_pin:pin});
+    const r = await rpc('con_dia_cerrar_f', {p_sucursal:suc, p_justificacion:just, p_pin:pin, p_fecha:fecha||null});
     if(r.code==='JUSTIFICAR') throw new Error('Hay diferencia: escribe la explicación.');
     if(!r.ok) throw new Error(r.error);
     toast(r.estado==='cuadrado' ? 'Cierre del día firmado. Coincide.' : 'Cierre del día firmado con diferencia. Se avisó a la Dirección.');
+    if(fecha) return vistaDia(suc);
     await cargar();
   });
-  if(pend) sondeo = setTimeout(() => { if($('#firmarD')) vistaDia(suc); }, 3000);
+  if(pend) sondeo = setTimeout(() => { if($('#firmarD')) vistaDia(suc, fecha); }, 3000);
 }
 
 // ===================== Panel =====================
@@ -1736,6 +1764,14 @@ async function detalleTurno(id){
     ${t.gastos.length ? `<h3 style="margin-top:18px;font-size:17px">Gastos</h3><table class="desglose">${t.gastos.map(g=>fila(esc(g.concepto), money(g.monto))).join('')}</table>` : ''}
     <button class="btn sec full" id="dc" style="margin-top:18px">Cerrar</button>`);
   m.querySelector('#dc').onclick = () => m.remove();
+  if(t.estado==='sin_cierre' && ['admin','supervisor','contabilidad'].includes(S.estado.usuario.rol)){
+    const r = document.createElement('button'); r.className='btn full'; r.style.marginTop='10px'; r.textContent='Completar corte con comprobantes';
+    m.querySelector('#dc').before(r); r.onclick = () => { m.remove(); vistaAclarar(t.id, () => vistaPanel()); };
+  }
+  if(t.cierre_tardio_en){
+    const a = document.createElement('div'); a.className='aviso ojo'; a.innerHTML = '<b>Cerrado tarde</b> el ' + fechaCorta(t.cierre_tardio_en) + ' ' + hora(t.cierre_tardio_en) + '.';
+    m.querySelector('table.desglose')?.before(a);
+  }
   if(t.estado==='retro'){
     const r = document.createElement('button'); r.className='btn full'; r.style.marginTop='10px'; r.textContent='Continuar captura';
     m.querySelector('#dc').before(r); r.onclick = () => { m.remove(); vistaRetro(t.id); };
@@ -1771,7 +1807,7 @@ async function detalleTurno(id){
 
 async function panelAlertas(){
   const a = await rpc('con_admin_alertas', {p_limite:60});
-  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Captura a mano no aprobada'};
+  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Captura a mano no aprobada', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
   $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
