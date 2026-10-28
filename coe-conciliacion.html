@@ -14,6 +14,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script>/* COE · ahorro de servidor: si la app no se usa, se pausa y suelta sus conexiones en vivo */
+(()=>{const IDLE_MIN=25,HID_MIN=15;let last=Date.now(),hidAt=null,sleeping=false;const clients=[];
+ const wrap=lib=>{if(lib&&lib.createClient&&!lib.__coeW){const cc=lib.createClient;lib.createClient=(...a)=>{const c=cc.apply(lib,a);clients.push(c);return c};lib.__coeW=1}return lib};
+ let _sb=wrap(window.supabase);try{Object.defineProperty(window,'supabase',{configurable:true,get:()=>_sb,set:v=>{_sb=wrap(v)}})}catch(e){}
+ const _si=window.setInterval.bind(window);window.setInterval=(fn,ms,...a)=>_si(()=>{if(!sleeping)typeof fn==='function'?fn(...a):(0,eval)(fn)},ms);
+ ['mousemove','keydown','pointerdown','touchstart','wheel','scroll'].forEach(e=>addEventListener(e,()=>{last=Date.now()},{passive:true,capture:true}));
+ document.addEventListener('visibilitychange',()=>{hidAt=document.hidden?Date.now():null;if(!document.hidden)check()});
+ function sleep(why){if(sleeping)return;sleeping=true;window.COE_DORMIDO=true;clients.forEach(c=>{try{c.removeAllChannels()}catch(e){}});try{window.COE_ON_SLEEP&&window.COE_ON_SLEEP()}catch(e){}
+  const d=document.createElement('div');d.id='coeSleep';d.setAttribute('role','dialog');d.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(10,22,30,.84);display:flex;align-items:center;justify-content:center;font:16px system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;text-align:center;padding:20px;cursor:pointer';
+  d.innerHTML='<div><div style="font-size:44px;line-height:1">⏸️</div><div style="font-size:21px;font-weight:700;margin:10px 0 6px">App en pausa</div><p style="opacity:.86;max-width:380px;margin:0 auto 16px;line-height:1.45">'+why+' Así el servidor no se satura. Su sesión y lo que guardó siguen igual.</p><button type="button" style="font:inherit;padding:11px 26px;border-radius:10px;border:0;background:#fff;color:#123;font-weight:700;cursor:pointer">Continuar</button></div>';
+  d.onclick=()=>{d.remove();sleeping=false;window.COE_DORMIDO=false;last=Date.now();if(window.COE_ON_WAKE){try{window.COE_ON_WAKE()}catch(e){location.reload()}}else location.reload()};
+  (document.body||document.documentElement).appendChild(d)}
+ function check(){if(sleeping)return;const n=Date.now();if(hidAt&&n-hidAt>HID_MIN*6e4)sleep('Se pausó porque la pestaña estuvo '+HID_MIN+' minutos en segundo plano.');else if(n-last>IDLE_MIN*6e4)sleep('Se pausó tras '+IDLE_MIN+' minutos sin uso.')}
+ _si(check,30000);})();</script>
 <style>
 :root{
   --ink:#18232C; --muted:#5B6873; --paper:#EEF2F2; --panel:#FFFFFF; --line:#D5DDDF;
