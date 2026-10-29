@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- COE Conciliación · v3.7 · 28 oct 2026 · Completar turnos Sin cierre y cierre del día atrasado -->
+<!-- COE Conciliación · v3.8 · 29 oct 2026 · Comprobantes con fecha anterior con doble firma -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D4F66">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.7 · 28 oct 2026';
+const VERSION = 'v3.8 · 29 oct 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -582,10 +582,12 @@ function filaDoc(e, editable){
   const hr = hora(e.creado);
   let ic = `<div class="ic">${ICO[td.ic]}</div>`, tit = td.n, sub = hr, der = '', extra = '';
   if(e.estado==='pendiente'){ ic = `<div class="ic gira">${ICO.reloj}</div>`; tit = 'Leyendo…'; sub = `${hr} · el sistema está reconociendo el documento`; }
+  else if(e.estado==='ok' && e.lectura?.fecha_distinta){ sub = `${hr} · <b style="color:var(--warn)">con fecha del ${fechaCorta(e.lectura.fecha_doc).slice(0,5)}${({pendiente:' · falta firma del Director', aprobada:' · validado', rechazada:' · NO aprobado'}[e.validacion]||'')}</b>`; der = `<div class="amt">${textoLectura(e)}</div>`; }
   else if(e.estado==='ok'){ sub = `${hr} · ${e.lectura?.manual ? '<b style="color:var(--warn)">capturado a mano' + ({pendiente:' · falta firma del Director', aprobada:' · validado', rechazada:' · NO aprobado'}[e.validacion]||'') + '</b>' : 'reconocido'}`; der = `<div class="amt">${textoLectura(e)}</div>`; }
   else if(e.estado==='error'){ ic = `<div class="ic mal">${ICO.alerta}</div>`; tit = 'No se pudo leer'; sub = esc(e.error||''); 
     if(editable) extra = `<div class="acc"><button class="btn chico sec" data-releer="${e.id}" data-arch="${esc(e.archivo)}">Leer de nuevo</button><button class="btn chico sec" data-manual="${e.id}" data-tipo-m="${e.tipo}">Capturar a mano</button></div>`; }
-  else if(e.estado==='rechazado'){ ic = `<div class="ic mal">${ICO.x}</div>`; tit = 'Rechazado'; sub = `<span style="color:var(--bad)">${esc(e.error||'')}</span>`; }
+  else if(e.estado==='rechazado'){ ic = `<div class="ic mal">${ICO.x}</div>`; tit = 'Rechazado'; sub = `<span style="color:var(--bad)">${esc(e.error||'')}</span>`;
+    if(editable && /es del \d\d\/\d\d y este corte es del/.test(e.error||'')) extra = `<div class="acc"><button class="btn chico sec" data-fechadist="${e.id}">Registrar con fecha anterior</button></div>`; }
   const borrar = editable ? `<button class="btn-ic" data-borrar="${e.id}" aria-label="Borrar">${ICO.basura}</button>` : '';
   return `<div class="doc"><button class="doc-main" data-ver="${esc(e.archivo)}" data-nom="${esc(td.n)}">${ic}<div class="t"><b>${tit}</b><span>${sub}</span></div>${e.estado==='ok'?'':''}</button>${der}${borrar}</div>${extra}`;
 }
@@ -601,6 +603,21 @@ function conectarDocs(raiz, alCambiar, opciones={}){
     ocupado(b, async () => { await rpc(opciones.dia ? 'con_dia_descartar' : 'con_descartar_evidencia', {p_evid:b.dataset.borrar}); toast('Comprobante borrado.'); alCambiar(); });
   });
   raiz.querySelectorAll('[data-manual]').forEach(b => b.onclick = () => capturaManual(b.dataset.manual, b.dataset.tipoM, alCambiar));
+  raiz.querySelectorAll('[data-fechadist]').forEach(b => b.onclick = () => {
+    const m = modal(`<h3>Registrar con fecha anterior</h3>
+      <p class="sub">Úsalo solo si este comprobante es de otro día pero se registró en el eOptics de <b>este</b> corte.</p>
+      <div class="aviso ojo">Firmas con tu PIN y queda <b>pendiente de la firma del Director o la Subdirectora</b>, que la revisan después en su panel. Se les avisa ahora.</div>
+      <label for="fdm">¿Por qué se registra hoy?</label><textarea id="fdm" placeholder="Ej. La transferencia llegó ayer pero se capturó en eOptics hoy"></textarea>
+      <div class="fila" style="margin-top:14px"><button class="btn sec" id="fdno">Cancelar</button><button class="btn" id="fdsi">Firmar</button></div>`);
+    m.querySelector('#fdno').onclick = () => m.remove();
+    m.querySelector('#fdsi').onclick = () => ocupado(m.querySelector('#fdsi'), async () => {
+      const mot = m.querySelector('#fdm').value.trim(); if(!mot) throw new Error('Escribe el motivo.');
+      const pin = await pedirPin('Registrar con fecha anterior'); if(!pin) return;
+      const r = await rpc('con_aceptar_fecha_distinta', {p_evid:b.dataset.fechadist, p_motivo:mot, p_pin:pin});
+      if(!r.ok) throw new Error(r.error);
+      m.remove(); toast('Registrado. Falta la firma del Director o la Subdirectora.'); alCambiar();
+    });
+  });
 }
 function capturaManual(evid, tipo, alCambiar){
   const campos = t => t==='eoptics' ? [['efectivo','Efectivo'],['tarjeta','Tarjeta'],['transferencia','Transferencia']]
@@ -1381,12 +1398,13 @@ async function panelCapturasPorValidar(){
   if(!capturasPend.length) return '';
   const montos = c => { const l = c.lectura||{}; return c.tipo==='eoptics' ? `Efectivo ${money(l.efectivo)} · Tarjeta ${money(l.tarjeta)} · Transf. ${money(l.transferencia)}` : money(c.tipo==='transferencia' ? l.monto : l.total); };
   const nomT = {eoptics:'Corte de eOptics', depositador:'Ticket de depósito', voucher:'Voucher', transferencia:'Transferencia', corte_dia:'Corte del depositador'};
-  return `<div class="aviso mal"><b>${capturasPend.length===1?'Una captura a mano espera su firma':capturasPend.length+' capturas a mano esperan su firma'}</b>
-    <span class="sub" style="display:block">El lector no reconoció el documento y alguien escribió el monto. Revise la foto contra el monto.</span>
+  return `<div class="aviso mal"><b>${capturasPend.length===1?'Un comprobante espera su firma':capturasPend.length+' comprobantes esperan su firma'}</b>
+    <span class="sub" style="display:block">Capturas a mano y comprobantes con fecha de otro día. Revise la foto contra el monto.</span>
     ${capturasPend.map(c => `<div class="pend" style="margin-top:10px">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <img data-cthumb="${esc(c.archivo)}" alt="Foto" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:#fff;flex:none;cursor:pointer">
-        <div style="min-width:0"><b>${esc(nomT[c.tipo]||c.tipo)}: ${montos(c)}</b><br>
+        <div style="min-width:0"><span class="chip ${c.lectura?.fecha_distinta?'revisar':'faltante'}">${c.lectura?.fecha_distinta?'Fecha del '+fechaCorta(c.lectura.fecha_doc).slice(0,5):'Captura a mano'}</span><br><b>${esc(nomT[c.tipo]||c.tipo)}: ${montos(c)}</b><br>
+          ${c.lectura?.fecha_distinta?`<span class="sub" style="display:block">${esc(c.motivo||'')}</span>`:''}
           <span class="sub">${esc(c.donde||'')} · capturó ${esc(cap(String(c.capturo||'').split(' ')[0]))} ${fechaCorta(c.creado)} ${hora(c.creado)}</span></div></div>
       <div class="fila" style="margin-top:8px"><button class="btn sec chico" data-cver="${esc(c.archivo)}" style="flex:1">Ver foto</button>
         <button class="btn sec chico" data-cno="${c.id}" style="flex:1">No aprobar</button><button class="btn chico" data-csi="${c.id}" style="flex:1">Aprobar</button></div></div>`).join('')}</div>`;
@@ -1399,7 +1417,7 @@ function conectarCapturas(raiz){
   const validar = (b, aprobar) => ocupado(b, async () => {
     let nota = null;
     if(!aprobar){ nota = prompt('¿Por qué no la aprueba? (llega como alerta y queda en el turno)'); if(!nota || !nota.trim()) return; }
-    const pin = await pedirPin(aprobar ? 'Aprobar captura a mano' : 'No aprobar captura', aprobar ? 'Confirma que el monto capturado coincide con la foto.' : esc(nota)); if(!pin) return;
+    const pin = await pedirPin(aprobar ? 'Aprobar comprobante' : 'No aprobar comprobante', aprobar ? 'Confirma que el comprobante y el monto son correctos.' : esc(nota)); if(!pin) return;
     const r = await rpc('con_validar_captura', {p_evid:b.dataset.csi||b.dataset.cno, p_aprobar:aprobar, p_nota:nota, p_pin:pin});
     if(!r.ok) throw new Error(r.error);
     toast(aprobar ? 'Captura aprobada.' : 'Captura marcada como no aprobada.'); vistaPanel('hoy');
@@ -1807,7 +1825,7 @@ async function detalleTurno(id){
 
 async function panelAlertas(){
   const a = await rpc('con_admin_alertas', {p_limite:60});
-  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Captura a mano no aprobada', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
+  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Comprobante no aprobado', fecha_distinta:'Comprobante con fecha anterior', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
   $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
