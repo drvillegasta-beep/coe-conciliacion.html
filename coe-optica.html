@@ -340,6 +340,12 @@ details.card summary{cursor:pointer}
   .fab{bottom:calc(82px + env(safe-area-inset-bottom,0px));right:14px;padding:14px 18px 14px 14px;font-size:16px}
   .newhdr{display:none}
 }
+
+/* entrada con usuarios fijos */
+.ulist{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.ucard{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer;color:var(--ink);font:inherit}
+.ucard:hover{border-color:var(--accent)}
+.ucard[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 </style>
 </head>
 <body>
@@ -810,16 +816,25 @@ function modalHoja(t){
 }
 
 /* ---------- acceso ---------- */
+let LOGIN_USERS=null, LOGIN_SEL=store.get('coeopt-ultimo-usuario')||'';
+async function cargarUsuariosLogin(){try{LOGIN_USERS=await rpc('opt_lista_login',{})||[]}catch(e){LOGIN_USERS=[]}if(!ME)render()}
+const ROL_TXT={ventas:'Ventas de óptica',admin:'Dirección',contabilidad:'Contabilidad'};
 function vLogin(){
+  if(LOGIN_USERS===null){cargarUsuariosLogin();return `<div class="login"><div class="empty" style="padding:40px 0">Cargando usuarios…</div></div>`}
+  if(LOGIN_SEL&&!LOGIN_USERS.some(u=>u.usuario===LOGIN_SEL)) LOGIN_SEL='';
+  const sel=LOGIN_USERS.find(u=>u.usuario===LOGIN_SEL);
   return `<div class="login"><div class="brandbig"><div class="logo">COE</div><div><h1>COE Óptica</h1><p class="sub">Centro Ocular Especializado · control y seguimiento de trabajos</p></div></div>
-  <form class="role" id="flogin" autocomplete="on">
-    <div class="f"><label for="lg-u">Usuario</label><input id="lg-u" autocomplete="username" autocapitalize="none" required></div>
-    <div class="f"><label for="lg-p">Contraseña</label><input id="lg-p" type="password" autocomplete="current-password" required></div>
+  <div class="label">¿Quién entra?</div>
+  <div class="ulist">${LOGIN_USERS.map(u=>`<button type="button" class="ucard" aria-pressed="${u.usuario===LOGIN_SEL}" data-luser="${esc(u.usuario)}"><span class="av ${u.rol==='ventas'?'ok':'warn'}">${esc(iniciales(u.nombre))}</span><span style="min-width:0;text-align:left"><b>${esc(u.nombre)}</b><span class="tiny" style="display:block">${ROL_TXT[u.rol]||u.rol}</span></span></button>`).join('')||'<div class="empty">No hay usuarios activos. Pida a Dirección que dé de alta su usuario.</div>'}</div>
+  ${sel?`<form class="role" id="flogin" autocomplete="on">
+    <input id="lg-u" type="text" autocomplete="username" value="${esc(sel.usuario)}" hidden>
+    <div class="f"><label for="lg-p">Contraseña de ${esc(sel.nombre.split(' ')[0])}</label><input id="lg-p" type="password" autocomplete="current-password" required></div>
     <div id="lg-err"></div>
-    <button class="btn primary" type="submit">Entrar</button>
-  </form>
-  <p class="tiny">Cada persona entra con su usuario. Ventas ve su tablero de trabajo; Administración ve el resumen y el control.</p></div>`;
+    <button class="btn primary big" type="submit">Entrar</button>
+  </form>`:''}
+  <p class="tiny">Ventas ve su tablero de trabajo; Dirección y Contabilidad ven el resumen y el control.</p></div>`;
 }
+document.getElementById('main').addEventListener('click',e=>{const b=e.target.closest('[data-luser]');if(!b||ME)return;LOGIN_SEL=b.dataset.luser;store.set('coeopt-ultimo-usuario',LOGIN_SEL);render();setTimeout(()=>{const p=document.getElementById('lg-p');if(p)p.focus()},30)});
 function vCambio(){
   return `<div class="login"><div><h1>Cree su contraseña y su PIN</h1><p class="sub">Es su primera entrada. La contraseña es para entrar; el PIN de 4 a 6 dígitos es su firma en los movimientos.</p></div>
   <form class="role" id="fcambio">
