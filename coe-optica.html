@@ -907,82 +907,145 @@ VISTAS.trabajos=function(){
 /* ---------- Expediente refractivo ---------- */
 const DXS=['Miopía','Miopía alta','Hipermetropía','Astigmatismo miópico','Astigmatismo hipermetrópico','Astigmatismo mixto','Presbicia','Anisometropía','Ambliopía','Estrabismo','Ojo seco','Pterigión','Queratocono','Catarata incipiente','Pseudofaquia','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular'];
 const DX_REF=['Catarata','Sospecha de glaucoma','Glaucoma','Retinopatía diabética','Degeneración macular','Queratocono','Pterigión'];
-const EX={q:'',sel:null,form:false,nuevo:false,prefill:{},regresar:false,dx:[]};
+const EX={q:'',sel:null,form:false,nuevo:false,prefill:{},regresar:false,dx:[],editar:null,hoja:null,leyendo:false};
+const avd=(ex,e)=>(ex&&ex.av&&ex.av[e])||{};
+const incompleto=ex=>!!ex&&!(avd(ex,'od').scl&&(avd(ex,'od').fl||avd(ex,'od').ccl));
 function referir(ex){
   const d=(ex.dx||[]).filter(x=>DX_REF.some(r=>x.startsWith(r)));
   if(d.length) return 'Diagnóstico de '+d.join(', ').toLowerCase();
-  const bad=['od','oi'].filter(e=>{const m=/20\/(\d+)/.exec((ex.av&&ex.av[e]&&ex.av[e].ccl)||'');return m&&+m[1]>40});
-  return bad.length?`Capacidad visual menor a 20/40 en ${bad.map(x=>x.toUpperCase()).join(' y ')}`:'';
+  const bad=['od','oi'].filter(e=>{const a=avd(ex,e);const m=/20\/(\d+)/.exec(a.ccl||a.fl||'');return m&&+m[1]>40});
+  return bad.length?`Agudeza visual corregida menor a 20/40 en ${bad.map(x=>x.toUpperCase()).join(' y ')}`:'';
 }
 const g4=(ex,e)=>((ex.rx&&ex.rx[e])||[]);
-function rxTable(ex){return `<div class="tbl-wrap"><table><thead><tr><th></th><th>Esfera</th><th>Cilindro</th><th>Eje</th><th>Adición</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td>${[0,1,2,3].map(i=>`<td class="rx">${esc(g4(ex,e)[i]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
-function avTable(ex){const a=e=>(ex.av&&ex.av[e])||{};return `<div class="tbl-wrap"><table><thead><tr><th></th><th colspan="2">Agudeza visual · sin corrección</th><th colspan="2">Capacidad visual · mejor corregida</th></tr><tr><th></th><th>Lejos</th><th>Cerca</th><th>Lejos</th><th>Cerca</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td><td class="rx">${esc(a(e).scl||'—')}</td><td class="rx">${esc(a(e).scc||'—')}</td><td class="rx">${esc(a(e).ccl||'—')}</td><td class="rx">${esc(a(e).ccc||'—')}</td></tr>`).join('')}</tbody></table></div>`}
+const gC=(ex,e)=>((ex.rx_completa&&ex.rx_completa[e])||[]);
+const tieneCompleta=ex=>ex&&ex.rx_completa&&['od','oi'].some(e=>gC(ex,e).some(Boolean));
+function rxTable(ex){
+  const fila=(lab,arr)=>['od','oi'].map((e,i)=>`<tr>${i===0?`<td rowspan="2" class="tiny" style="vertical-align:middle">${lab}</td>`:''}<td><b>${e.toUpperCase()}</b></td>${[0,1,2,3].map(k=>`<td class="rx">${esc(arr(ex,e)[k]||'—')}</td>`).join('')}</tr>`).join('');
+  const comp=tieneCompleta(ex);
+  return `<div class="tbl-wrap"><table><thead><tr>${comp?'<th></th>':''}<th></th><th>Esfera</th><th>Cilindro</th><th>Eje</th><th>Adición</th></tr></thead><tbody>
+  ${comp?fila('Completa',gC)+fila('Final prescrita',g4):['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td>${[0,1,2,3].map(k=>`<td class="rx">${esc(g4(ex,e)[k]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  ${ex.tolerancia?`<div class="alert info">La refracción final se prescribió menor a la completa para ganar tolerancia.${ex.tolerancia_nota?' '+esc(ex.tolerancia_nota):''}</div>`:''}`;
+}
+function avTable(ex){const a=e=>avd(ex,e);return `<div class="tbl-wrap"><table><thead><tr><th></th><th colspan="2">AV sin corrección</th><th colspan="2">AV con la refracción final</th><th colspan="2">Capacidad visual (mejor corregida)</th></tr><tr><th></th><th>Lejos</th><th>Cerca</th><th>Lejos</th><th>Cerca</th><th>Lejos</th><th>Cerca</th></tr></thead><tbody>${['od','oi'].map(e=>`<tr><td><b>${e.toUpperCase()}</b></td>${['scl','scc','fl','fc','ccl','ccc'].map(k=>`<td class="rx">${esc(a(e)[k]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
 function expResumen(p,ex,wizard){
   const ref=referir(ex);
-  return `<div class="card"><div class="split"><div style="min-width:0"><h3>${esc(p.nombre)}</h3><div class="tiny">${edad(p.nacimiento)} años · ${esc(p.expediente)} · graduó ${esc(ex.optometrista||'—')} el ${fmtY(ex.fecha)}</div></div>${wizard?'<span class="pill mute">Del expediente · no editable</span>':''}${ex.archivo?`<button class="btn sm" data-ver="${esc(ex.archivo)}">${ico('file','sm')}Respaldo</button>`:''}</div>
+  return `<div class="card"><div class="split"><div style="min-width:0"><h3>${esc(p.nombre)}</h3><div class="tiny">${p.nacimiento?edad(p.nacimiento)+' años':'sin fecha de nacimiento'} · ${esc(p.expediente)} · graduó ${esc(ex.optometrista||'—')} el ${fmtY(ex.fecha)}${ex.proveedor?' · enviar a <b>'+esc(ex.proveedor)+'</b>':''}</div></div>${wizard?'<span class="pill mute">Del expediente · no editable</span>':''}${ex.archivo?`<button class="btn sm" data-ver="${esc(ex.archivo)}">${ico('file','sm')}Respaldo</button>`:''}</div>
   <div class="chips">${(ex.dx||[]).map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>
   ${ref?`<div class="alert warn">! ${esc(ref)}. Ofrezca consulta con oftalmología.</div>`:''}
-  ${!(ex.av&&ex.av.od&&ex.av.od.scl)?'<div class="alert info">Graduación tomada de la hoja de laboratorio. Faltan agudeza visual, capacidad visual y diagnósticos: capture una graduación completa para el expediente.</div>':''}
+  ${incompleto(ex)&&!wizard&&ME.rol!=='contabilidad'?`<div class="alert info split"><span>La graduación viene de la hoja de laboratorio. Faltan agudeza visual, diagnósticos y datos del paciente.</span><button class="btn sm primary" data-expcompletar="${ex.id}">Completar expediente</button></div>`:''}
   ${rxTable(ex)}${avTable(ex)}</div>`;
 }
 VISTAS.expediente=function(){
   if(EX.nuevo) return vExpForm(null);
   if(EX.sel){const p=DB.pacientes.find(x=>x.id===EX.sel); if(p) return EX.form?vExpForm(p):vExpDetalle(p); EX.sel=null}
   const q=EX.q.toLowerCase(); const L=DB.pacientes.filter(p=>!q||(p.nombre+' '+p.expediente+' '+(p.telefono||'')).toLowerCase().includes(q));
-  return `<div class="split"><div><h1>Expediente refractivo</h1><p class="sub">Graduación, agudeza visual, capacidad visual, edad y diagnósticos de cada paciente.</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expnew>+ Nuevo paciente</button>':''}</div>
+  const pend=DB.pacientes.filter(p=>incompleto(p.examenes[0])).length;
+  return `<div class="split"><div><h1>Expediente refractivo</h1><p class="sub">Graduación, agudeza visual, edad y diagnósticos de cada paciente.${pend?` <b>${pend} por completar</b> (creados desde la hoja de laboratorio).`:''}</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expnew>+ Nuevo paciente</button>':''}</div>
   <div class="toolbar" style="margin-top:12px"><input id="exq" type="search" placeholder="Buscar paciente, expediente o teléfono" value="${esc(EX.q)}" aria-label="Buscar paciente"></div>
-  <div class="lane" style="margin-top:12px">${L.slice(0,200).map(p=>{const ex=p.examenes[0];const ref=ex?referir(ex):'';return `<div class="task" data-exp="${p.id}" role="button" tabindex="0"><span class="av ${ref?'warn':'ok'}">${esc(iniciales(p.nombre))}</span><div style="min-width:0"><div class="t1">${esc(p.nombre)}</div><div class="t2"><span>${edad(p.nacimiento)} años · ${esc(p.expediente)} · ${ex?'última graduación '+fmtY(ex.fecha):'sin graduación'}</span></div><div class="chips" style="margin-top:6px">${ex?(ex.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join(''):''}${ref?'<span class="pill warn">Referir a oftalmología</span>':''}</div></div><span class="go">Abrir ${ico('chev','sm')}</span></div>`}).join('')||`<div class="empty">${DB.pacientes.length?'Sin resultados.':'Aún no hay pacientes. Se crean al capturar la primera graduación.'}</div>`}</div>`;
+  <div class="lane" style="margin-top:12px">${L.slice().sort((a,b)=>(incompleto(b.examenes[0])?1:0)-(incompleto(a.examenes[0])?1:0)).slice(0,200).map(p=>{const ex=p.examenes[0];const ref=ex?referir(ex):'';const inc=incompleto(ex);return `<div class="task" data-exp="${p.id}" role="button" tabindex="0"><span class="av ${ref?'warn':inc?'bad':'ok'}">${esc(iniciales(p.nombre))}</span><div style="min-width:0"><div class="t1">${esc(p.nombre)}</div><div class="t2"><span>${p.nacimiento?edad(p.nacimiento)+' años · ':''}${esc(p.expediente)} · ${ex?'última graduación '+fmtY(ex.fecha):'sin graduación'}</span></div><div class="chips" style="margin-top:6px">${inc?'<span class="pill bad">Por completar</span>':''}${ex?(ex.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join(''):''}${ref?'<span class="pill warn">Referir a oftalmología</span>':''}</div></div><span class="go">${inc?'Completar':'Abrir'} ${ico('chev','sm')}</span></div>`}).join('')||`<div class="empty">${DB.pacientes.length?'Sin resultados.':'Aún no hay pacientes.'}</div>`}</div>`;
 };
 function vExpDetalle(p){
   const [ex,...prev]=p.examenes; const trab=DB.trabajos.filter(t=>t.paciente_id===p.id||t.paciente_nombre===p.nombre);
   let cambio='';
   if(ex&&prev.length){const d=['od','oi'].map(e=>Math.abs(num(g4(ex,e)[0])-num(g4(prev[0],e)[0]))); if(Math.max(...d)>=0.75) cambio=`<div class="alert warn">! Cambio de esfera de ${Math.max(...d).toFixed(2)} D contra la graduación anterior. Confirme antes de pedir micas.</div>`;}
+  const puede=ME.rol!=='contabilidad';
   return `<button class="btn sm" data-expback>‹ Expedientes</button>
-  <div class="split" style="margin-top:12px"><div><h1>${esc(p.nombre)}</h1><p class="sub">${edad(p.nacimiento)} años · nació el ${fmtY(p.nacimiento)} · ${esc(p.expediente)} · ${esc(fmtTel(p.telefono))}</p></div>${ME.rol!=='contabilidad'?'<button class="btn primary" data-expform>+ Nueva graduación</button>':''}</div>
-  <div class="section">${cambio}${ex?expResumen(p,ex,false)+(ME.rol!=='contabilidad'?`<div class="actions">${bajaAbierta(ex.id)?'<span class="pill warn">Borrado solicitado · pendiente de Dirección</span>':`<button class="btn sm danger" data-bjexam="${ex.id}">Solicitar borrado de esta graduación</button>`}</div>`:''):'<div class="empty">Sin graduación capturada.</div>'}</div>
-  ${prev.length?`<div class="section"><h2>Graduaciones anteriores</h2>${prev.map(x=>`<div class="card"><div class="split"><b>${fmtY(x.fecha)}</b><span class="tiny">${esc(x.optometrista||'')}</span></div>${rxTable(x)}<div class="chips">${(x.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div>`).join('')}</div>`:''}
+  <div class="split" style="margin-top:12px"><div><h1>${esc(p.nombre)}</h1><p class="sub">${p.nacimiento?edad(p.nacimiento)+' años · nació el '+fmtY(p.nacimiento)+' · ':'sin fecha de nacimiento · '}${esc(p.expediente)} · ${esc(fmtTel(p.telefono))}</p></div>${puede?`<div class="actions">${ex?`<button class="btn ${incompleto(ex)?'primary':''}" data-expcompletar="${ex.id}">${incompleto(ex)?'Completar expediente':'Editar graduación'}</button>`:''}<button class="btn ${ex&&incompleto(ex)?'':'primary'}" data-expform>+ Nueva graduación</button></div>`:''}</div>
+  <div class="section">${cambio}${ex?expResumen(p,ex,false)+(puede?`<div class="actions">${bajaAbierta(ex.id)?'<span class="pill warn">Borrado solicitado · pendiente de Dirección</span>':`<button class="btn sm danger" data-bjexam="${ex.id}">Solicitar borrado de esta graduación</button>`}</div>`:''):'<div class="empty">Sin graduación capturada.</div>'}</div>
+  ${prev.length?`<div class="section"><h2>Graduaciones anteriores</h2>${prev.map(x=>`<div class="card"><div class="split"><b>${fmtY(x.fecha)}</b><span class="tiny">${esc(x.optometrista||'')}${x.proveedor?' · '+esc(x.proveedor):''}</span></div>${rxTable(x)}<div class="chips">${(x.dx||[]).map(d=>`<span class="pill mute">${esc(d)}</span>`).join('')}</div></div>`).join('')}</div>`:''}
   ${trab.some(t=>t.hoja_archivo||t.ticket_archivo)?`<div class="section"><h2>Documentos de eOptics</h2><div class="docs">${trab.map(t=>`<div class="doc">${ico('file')}<div><b>Venta ${esc(t.venta)}${t.id_trabajo?' · trabajo '+esc(t.id_trabajo):''}</b><div class="tiny">${fmtY(t.fecha_venta)} · ${esc(t.tipo)} · ${esc(t.material)}</div></div><div class="actions">${t.hoja_archivo?`<button class="btn sm" data-ver="${esc(t.hoja_archivo)}">${ico('eye','sm')}Hoja de laboratorio</button>`:''}${t.ticket_archivo?`<button class="btn sm" data-ver="${esc(t.ticket_archivo)}">${ico('ticket','sm')}Ticket</button>`:''}${t.garantia_archivo?`<button class="btn sm" data-ver="${esc(t.garantia_archivo)}">${ico('alert','sm')}Garantía</button>`:''}</div></div>`).join('')}</div></div>`:''}
   <div class="section"><h2>Trabajos de óptica</h2>${trab.length?`<div class="lane" style="margin-top:0">${trab.map(taskHTML).join('')}</div>`:'<div class="empty">Sin trabajos registrados.</div>'}</div>`;
 }
+/* formulario: nuevo paciente, nueva graduación o completar la que vino de la hoja */
 function vExpForm(p){
-  const grid=(heads,keys)=>`<div class="rxgrid" style="grid-template-columns:40px repeat(4,minmax(0,1fr))"><span></span>${heads.map(h=>`<span class="h">${h}</span>`).join('')}${['od','oi'].map(e=>`<span class="eye">${e.toUpperCase()}</span>${keys.map(([c,ph])=>`<input id="x-${e}-${c}" placeholder="${ph}" aria-label="${e} ${c}" ${c==='eje'?'inputmode="numeric"':''}>`).join('')}`).join('')}</div>`;
+  const ex=EX.editar&&p?p.examenes.find(x=>x.id===EX.editar):null;
   const pf=EX.prefill||{};
+  const val=(e,k)=>{ // prefill: examen a completar > datos de la hoja subida
+    const map={esf:0,cil:1,eje:2,add:3};
+    if(k in map){const src=ex?g4(ex,e):(pf.rx&&pf.rx[e])||[];return src[map[k]]||''}
+    if(k.startsWith('c_')){const src=ex?gC(ex,e):[];return src[map[k.slice(2)]]||''}
+    return avd(ex,e)[k]||'';
+  };
+  const grid=(heads,keys,pre='')=>`<div class="rxgrid" style="grid-template-columns:40px repeat(${keys.length},minmax(0,1fr))"><span></span>${heads.map(h=>`<span class="h">${h}</span>`).join('')}${['od','oi'].map(e=>`<span class="eye">${e.toUpperCase()}</span>${keys.map(([c,ph])=>`<input id="x-${e}-${pre}${c}" placeholder="${ph}" value="${esc(val(e,pre+c))}" aria-label="${e} ${pre}${c}" ${c==='eje'?'inputmode="numeric"':''}>`).join('')}`).join('')}</div>`;
+  const nom=p?p.nombre:(pf.nombre||''), tel=p?(p.telefono||''):(pf.telefono||''), nac=p?(p.nacimiento||''):(pf.nacimiento||'');
+  const prov=ex?ex.proveedor:(pf.proveedor||'');
+  const titulo=ex?(incompleto(ex)?'Completar expediente':'Editar graduación'):(p?'Nueva graduación':'Nuevo paciente');
+  if(EX.dxInit!==titulo+(ex?ex.id:'')){EX.dx=ex?[...(ex.dx||[])]:[];EX.dxInit=titulo+(ex?ex.id:'')}
+  const RXF=[['esf',''],['cil',''],['eje',''],['add','']];
   return `<button class="btn sm" data-expback>‹ ${p?'Volver al expediente':(EX.regresar?'Volver al trabajo':'Expedientes')}</button>
-  <h1 style="margin-top:12px">${p?'Nueva graduación':'Nuevo paciente'}</h1>${p?`<p class="sub">${esc(p.nombre)} · ${edad(p.nacimiento)} años</p>`:''}
+  <h1 style="margin-top:12px">${titulo}</h1>${p?`<p class="sub">${esc(p.nombre)} · ${esc(p.expediente)}</p>`:''}
   <div class="form" style="margin-top:12px">
-  ${p?'':`<div class="card"><h3>Paciente</h3><div class="fields"><div class="f w2"><label for="x-nom">Nombre completo *</label><input id="x-nom" value="${esc(pf.nombre||'')}"></div><div class="f"><label for="x-nac">Fecha de nacimiento *</label><input id="x-nac" type="date"></div><div class="f"><label for="x-tel">WhatsApp *</label><input id="x-tel" inputmode="tel" placeholder="10 dígitos" value="${esc(pf.telefono||'')}"></div></div></div>`}
-  <div class="card"><h3>Agudeza visual y capacidad visual</h3>${grid(['AV lejos','AV cerca','CV lejos','CV cerca'],[['scl','20/'],['scc','J'],['ccl','20/'],['ccc','J']])}
-  <p class="tiny">AV: sin corrección. CV: capacidad visual con la mejor corrección. Lejos en Snellen (20/20), cerca en Jaeger (J1).</p></div>
-  <div class="card"><h3>Refracción final</h3>${grid(['Esfera','Cilindro','Eje','Adición'],[['esf',''],['cil',''],['eje',''],['add','']])}</div>
-  <div class="card"><h3>Diagnósticos oftalmológicos</h3><div class="chips">${DXS.map(d=>`<button class="chip" type="button" aria-pressed="${EX.dx.includes(d)}" data-dx="${d}">${d}</button>`).join('')}</div><p class="tiny">Catarata, glaucoma, retinopatía, queratocono, pterigión o capacidad visual menor a 20/40 marcan al paciente para consulta con oftalmología.</p></div>
-  <div class="card"><h3>Respaldo</h3><div class="fields"><div class="f w2"><label for="x-opt">Graduó</label><input id="x-opt" list="x-opts" value="Optometría COE"><datalist id="x-opts"><option>Optometría COE</option><option>Dra. Rivera Bustos</option><option>Dr. Villegas</option></datalist></div><div class="f w2"><label for="x-file">Receta o captura de eOptics (foto o PDF)</label><input id="x-file" type="file" accept="image/*,application/pdf"></div><div class="f w4"><label for="x-notas">Notas</label><input id="x-notas"></div></div></div>
+  ${p?'':`<div class="card"><div class="split"><h3>¿Ya tiene hoja de laboratorio de eOptics?</h3>${EX.hoja?'<span class="pill ok">Datos tomados de la hoja</span>':''}</div>
+    <p class="tiny" style="margin:0">Súbala y se llenan solos el nombre, el teléfono y la refracción.</p>
+    ${EX.leyendo?'<div class="alert info">Leyendo la hoja…</div>':`<input id="x-hoja" type="file" accept="image/*,application/pdf">`}</div>`}
+  <div class="card"><h3>Paciente</h3><div class="fields"><div class="f w2"><label for="x-nom">Nombre completo *</label><input id="x-nom" value="${esc(nom)}"></div><div class="f"><label for="x-nac">Fecha de nacimiento *</label><input id="x-nac" type="date" value="${esc(nac)}"></div><div class="f"><label for="x-tel">WhatsApp *</label><input id="x-tel" inputmode="tel" placeholder="10 dígitos" value="${esc(tel)}"></div></div>
+    ${p?'':'<div id="x-dup"></div>'}</div>
+  <div class="card"><h3>Agudeza visual sin corrección</h3>${grid(['Lejos','Cerca'],[['scl','20/'],['scc','J']])}</div>
+  <div class="card"><h3>Refracción completa</h3><p class="tiny" style="margin:0">La refracción subjetiva total. Opcional si es igual a la final.</p>${grid(['Esfera','Cilindro','Eje','Adición'],RXF,'c_')}</div>
+  <div class="card"><h3>Refracción final prescrita *</h3><p class="tiny" style="margin:0">La que se manda al laboratorio.</p>${grid(['Esfera','Cilindro','Eje','Adición'],RXF)}
+    <label class="switch"><input type="checkbox" id="x-tol" ${ex&&ex.tolerancia?'checked':''}> No se prescribe la refracción completa, para ganar tolerancia</label>
+    <div class="f"><label for="x-toln">Qué se ajustó y por qué</label><input id="x-toln" placeholder="Ej. se bajó 0.50 de cilindro OD; primer uso de lentes" value="${esc(ex&&ex.tolerancia_nota||'')}"></div></div>
+  <div class="card"><h3>Agudeza visual con la refracción final *</h3>${grid(['Lejos','Cerca'],[['fl','20/'],['fc','J']])}
+    <details ${ex&&(avd(ex,'od').ccl||avd(ex,'oi').ccl)?'open':''}><summary class="tiny">Capacidad visual (mejor corregida), si es distinta</summary>${grid(['Lejos','Cerca'],[['ccl','20/'],['ccc','J']])}</details></div>
+  <div class="card"><h3>Proveedor para el trabajo</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" type="button" aria-pressed="${prov===l.nombre}" data-xprov="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}<button class="chip" type="button" aria-pressed="${!prov}" data-xprov="">Sin definir</button></div><input type="hidden" id="x-prov" value="${esc(prov)}"><p class="tiny" style="margin:0">Se propone al registrar la venta; se puede cambiar ahí.</p></div>
+  <div class="card"><h3>Diagnósticos oftalmológicos *</h3><div class="chips">${DXS.map(d=>`<button class="chip" type="button" aria-pressed="${EX.dx.includes(d)}" data-dx="${d}">${d}</button>`).join('')}</div><p class="tiny">Catarata, glaucoma, retinopatía, queratocono, pterigión o agudeza corregida menor a 20/40 marcan al paciente para consulta con oftalmología.</p></div>
+  <div class="card"><h3>Respaldo</h3><div class="fields"><div class="f w2"><label for="x-opt">Graduó</label><input id="x-opt" list="x-opts" value="${esc(ex&&ex.optometrista&&!/^Hoja de laboratorio/.test(ex.optometrista)?ex.optometrista:'Optometría COE')}"><datalist id="x-opts"><option>Optometría COE</option><option>Dra. Rivera Bustos</option><option>Dr. Villegas</option></datalist></div><div class="f w2"><label for="x-file">${ex&&ex.archivo?'Reemplazar respaldo (opcional)':'Receta o captura de eOptics (foto o PDF)'}</label><input id="x-file" type="file" accept="image/*,application/pdf"></div><div class="f w4"><label for="x-notas">Notas</label><input id="x-notas" value="${esc(ex&&ex.notas||'')}"></div></div></div>
   <div id="x-err" class="form"></div>
-  <div class="actions"><button class="btn primary" data-expsave>Guardar en expediente</button></div></div>`;
+  <div class="actions"><button class="btn primary big" data-expsave>Guardar en expediente</button></div></div>`;
+}
+function expDup(){
+  const box=document.getElementById('x-dup'); if(!box) return;
+  const n=(document.getElementById('x-nom').value||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const t=(document.getElementById('x-tel').value||'').replace(/\D/g,'');
+  const m=n.length>5?DB.pacientes.filter(p=>p.nombre.trim().toLowerCase().replace(/\s+/g,' ')===n||(t.length===10&&p.telefono===t)):[];
+  box.innerHTML=m.map(p=>`<div class="alert warn split"><span>Ya existe ${esc(p.nombre)} (${esc(p.expediente)}${p.telefono?' · '+esc(fmtTel(p.telefono)):''}). No lo capture otra vez.</span><button class="btn sm primary" data-expir="${p.id}">${incompleto(p.examenes[0])?'Completar su expediente':'Abrir su expediente'}</button></div>`).join('');
+}
+async function expHoja(file){
+  EX.leyendo=true; render();
+  const r=await textoDe(file); const L=LECT.hoja(r.texto);
+  EX.leyendo=false;
+  if(!L.od){toast(LECT.ticket(r.texto).venta?'Ese archivo es el ticket de venta; suba la hoja de laboratorio.':'No se pudo leer la hoja; capture los datos a mano.',true);render();return}
+  const rx4=e=>[L[e].esf,L[e].cil,L[e].eje,L[e].add];
+  EX.hoja={file,L};
+  EX.prefill={...EX.prefill,nombre:LECT.titulo(L.paciente||''),telefono:L.telefono||'',rx:{od:rx4('od'),oi:rx4('oi')}};
+  render(); setTimeout(expDup,30);
 }
 async function expSave(btn){
   const v=id=>{const el=document.getElementById(id);return el?el.value.trim():''}; const errs=[];
   const p=EX.sel&&!EX.nuevo?DB.pacientes.find(x=>x.id===EX.sel):null;
-  if(!p){if(!v('x-nom'))errs.push('Escriba el nombre del paciente.');if(!v('x-nac'))errs.push('Capture la fecha de nacimiento; con ella se calcula la edad.');if(!/^\d{10}$/.test(v('x-tel').replace(/\D/g,'')))errs.push('El WhatsApp debe tener 10 dígitos.')}
-  ['od','oi'].forEach(e=>{const E=e.toUpperCase(),ej=v(`x-${e}-eje`);
-    if(!v(`x-${e}-scl`))errs.push(`Falta agudeza visual de lejos ${E}.`);
-    if(!v(`x-${e}-ccl`))errs.push(`Falta capacidad visual de lejos ${E}.`);
-    if(v(`x-${e}-cil`)&&!ej)errs.push(`Hay cilindro en ${E} sin eje.`);
-    if(ej&&(isNaN(+ej)||+ej<0||+ej>180))errs.push(`Eje ${E} fuera de rango (0 a 180).`)});
+  const ex=EX.editar&&p?p.examenes.find(x=>x.id===EX.editar):null;
+  if(!v('x-nom'))errs.push('Escriba el nombre del paciente.');
+  if(!v('x-nac'))errs.push('Capture la fecha de nacimiento; con ella se calcula la edad.');
+  if(!/^\d{10}$/.test(v('x-tel').replace(/\D/g,'')))errs.push('El WhatsApp debe tener 10 dígitos.');
+  ['od','oi'].forEach(e=>{const E=e.toUpperCase();
+    if(!v(`x-${e}-scl`))errs.push(`Falta agudeza visual sin corrección de lejos ${E}.`);
+    if(!v(`x-${e}-esf`))errs.push(`Falta la esfera de la refracción final ${E}.`);
+    if(!v(`x-${e}-fl`))errs.push(`Falta la agudeza visual con la refracción final de lejos ${E}.`);
+    for(const pre of ['','c_']){const ej=v(`x-${e}-${pre}eje`);
+      if(v(`x-${e}-${pre}cil`)&&!ej)errs.push(`Hay cilindro ${pre?'en la refracción completa':''} ${E} sin eje.`);
+      if(ej&&(isNaN(+ej)||+ej<0||+ej>180))errs.push(`Eje ${E} fuera de rango (0 a 180).`)}});
+  const tol=document.getElementById('x-tol').checked;
+  const hayComp=['od','oi'].some(e=>['esf','cil','eje','add'].some(c=>v(`x-${e}-c_${c}`)));
+  if(tol&&!hayComp)errs.push('Marcó que no se prescribe la refracción completa: capture también la refracción completa.');
   if(!EX.dx.length)errs.push('Marque al menos un diagnóstico.');
   const box=document.getElementById('x-err');
   if(errs.length){box.innerHTML=errs.map(x=>`<div class="alert bad">✕ ${esc(x)}</div>`).join('');box.scrollIntoView({block:'center'});return}
   btn.disabled=true; btn.textContent='Guardando…';
-  let archivo=null; const fl=document.getElementById('x-file').files[0];
+  let archivo=null; const fl=document.getElementById('x-file').files[0]||(EX.hoja&&EX.hoja.file);
   if(fl){try{archivo=await subirArchivo(fl)}catch(e){toast('No se pudo subir el respaldo: '+cleanErr(e),true);btn.disabled=false;btn.textContent='Guardar en expediente';return}}
-  const examen={optometrista:v('x-opt'),av:{},rx:{},dx:[...EX.dx],notas:v('x-notas'),archivo};
-  ['od','oi'].forEach(e=>{examen.av[e]={scl:v(`x-${e}-scl`),scc:v(`x-${e}-scc`),ccl:v(`x-${e}-ccl`),ccc:v(`x-${e}-ccc`)};examen.rx[e]=['esf','cil','eje','add'].map(c=>{let x=v(`x-${e}-${c}`);if(c==='eje'&&x)x=String(+x).padStart(3,'0');return x})});
-  let r;
-  if(p) r=await act('examen_crear',{paciente_id:p.id,examen});
-  else{const [y,m,d]=v('x-nac').split('-').map(Number);r=await act('paciente_crear',{nombre:v('x-nom'),nacimiento:v('x-nac'),telefono:v('x-tel').replace(/\D/g,''),sede:ME.sede,examen})}
-  if(!r){btn.disabled=false;btn.textContent='Guardar en expediente';return}
-  const pid=p?p.id:r.id; EX.dx=[]; EX.form=false; EX.nuevo=false; EX.sel=pid; toast('Guardado en el expediente');
-  if(EX.regresar){EX.regresar=false;NEW.paciente_id=pid;VIEW='nuevo';NEW.step=2}
-  render(); window.scrollTo(0,0);
+  const eje=x=>x?String(+x).padStart(3,'0'):x;
+  const examen={optometrista:v('x-opt'),av:{},rx:{},rx_completa:{},dx:[...EX.dx],notas:v('x-notas'),archivo,tolerancia:tol,tolerancia_nota:tol?v('x-toln'):'',proveedor:v('x-prov')};
+  ['od','oi'].forEach(e=>{examen.av[e]={scl:v(`x-${e}-scl`),scc:v(`x-${e}-scc`),fl:v(`x-${e}-fl`),fc:v(`x-${e}-fc`),ccl:v(`x-${e}-ccl`),ccc:v(`x-${e}-ccc`)};
+    examen.rx[e]=['esf','cil','eje','add'].map(c=>c==='eje'?eje(v(`x-${e}-${c}`)):v(`x-${e}-${c}`));
+    examen.rx_completa[e]=hayComp?['esf','cil','eje','add'].map(c=>c==='eje'?eje(v(`x-${e}-c_${c}`)):v(`x-${e}-c_${c}`)):[]});
+  try{
+    const r=await rpc('opt_expediente_guardar',{p_token:TOKEN,p_data:{paciente_id:p?p.id:'',examen_id:ex?ex.id:'',paciente:{nombre:v('x-nom'),nacimiento:v('x-nac'),telefono:v('x-tel').replace(/\D/g,''),sede:ME.sede},examen}});
+    await cargar();
+    const pid=r.paciente_id; EX.dx=[]; EX.dxInit=null; EX.form=false; EX.nuevo=false; EX.editar=null; EX.hoja=null; EX.prefill={}; EX.sel=pid;
+    toast(r.existente?'El paciente ya existía: se agregó la graduación a su expediente':'Guardado en el expediente');
+    if(EX.regresar){EX.regresar=false;NEW.paciente_id=pid;VIEW='nuevo';NEW.step=2}
+    render(); window.scrollTo(0,0);
+  }catch(e){toast(cleanErr(e),true);btn.disabled=false;btn.textContent='Guardar en expediente'}
 }
 
 /* ---------- Pedidos a laboratorio ---------- */
@@ -1189,8 +1252,10 @@ function w2Check(){
   return !errs.length;
 }
 function w3(){
-  const t=T(), sug=/Policarbonato|1\.67|1\.74|FOTO|Fotocrom|Trivex/i.test(t.material)||/contacto/i.test(t.tipo)?'Health Vision':'Sra. Angy'; if(!NEW.lab) NEW.lab=sug;
-  return `<div class="card"><h3>Laboratorio</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" aria-pressed="${NEW.lab===l.nombre}" data-lab="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}</div><p class="tiny">Sugerido por el material: ${sug}.</p></div>
+  const t=T(), sugMat=/Policarbonato|1\.67|1\.74|FOTO|Fotocrom|Trivex/i.test(t.material)||/contacto/i.test(t.tipo)?'Health Vision':'Sra. Angy';
+  const pp=NEW.paciente_id&&DB.pacientes.find(x=>x.id===NEW.paciente_id), provExp=pp&&pp.examenes[0]&&pp.examenes[0].proveedor;
+  const sug=provExp||sugMat; if(!NEW.lab) NEW.lab=sug;
+  return `<div class="card"><h3>Laboratorio</h3><div class="chips">${(CFG.labs||[]).map(l=>`<button class="chip" aria-pressed="${NEW.lab===l.nombre}" data-lab="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('')}</div><p class="tiny">${provExp?`Elegido en el expediente: ${esc(provExp)}.`:`Sugerido por el material: ${sug}.`}</p></div>
   ${CFG.ref&&CFG.ref.activo?`<div class="card"><h3>Código de referido</h3><div class="f" style="max-width:320px"><input id="w-ref" placeholder="COE-4001 (opcional)" value="${esc(NEW.ref)}" aria-label="Código de referido"><span class="hint" id="w-refh"></span></div></div>`:''}
   <div class="card"><h3>Políticas de garantía</h3><p class="tiny">Léalas al paciente; firma de conformidad.</p><label class="switch"><input type="checkbox" id="w-gar" ${NEW.gar?'checked':''}> El paciente firmó las políticas de garantía</label></div>
   <div class="card"><h3>Resumen</h3><div class="lks">${lk('Venta',t.venta)}${lk('Paciente',t.paciente)}${lk('Trabajo',`${t.tipo} · ${t.material}`)}${lk('Entrega prometida',t.fecha_entrega?fmtY(t.fecha_entrega):'—')}${lk('Total',money(t.total))}${lk('Pagado',money(t.pagado))}${lk('Saldo',money(t.total-t.pagado))}${lk('Documentos','Ticket y hoja de laboratorio')}</div></div>
@@ -1501,6 +1566,8 @@ function hojaEntrega(t){
 function bindView(){
   const m=document.getElementById('main');
   const q=document.getElementById('q'); if(q) q.addEventListener('input',e=>{TQ=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)});
+  const xh=document.getElementById('x-hoja'); if(xh) xh.addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)expHoja(f)});
+  ['x-nom','x-tel'].forEach(id=>{const el=document.getElementById(id);if(el&&document.getElementById('x-dup'))el.addEventListener('input',expDup)});
   const xq=document.getElementById('exq'); if(xq) xq.addEventListener('input',e=>{EX.q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('exq');n.focus();n.setSelectionRange(p,p)});
   const okSize=f=>{if(f.size>15*1024*1024){toast('El archivo pesa más de 15 MB',true);return false}return true};
   const tk=document.getElementById('tk-new'); if(tk) tk.addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f&&okSize(f))leerDoc('tk',f)});
@@ -1526,12 +1593,15 @@ document.getElementById('main').addEventListener('click',async e=>{
   if(C('[data-hjreset]')){NEW.hj={file:null,leyendo:false,prog:0,origen:'',L:null,err:''};render();return}
   if(el=C('[data-lab]')){NEW.lab=el.dataset.lab;wizCheck();render();return}
   if(C('[data-wsave]')){wizCheck();if(NEW.gar&&NEW.refOk)wizSave();return}
-  if(el=C('[data-expadd]')){EX.sel=el.dataset.expadd;EX.form=true;EX.regresar=true;EX.dx=[];VIEW='expediente';render();window.scrollTo(0,0);return}
+  if(el=C('[data-expadd]')){EX.sel=el.dataset.expadd;EX.form=true;EX.regresar=true;EX.editar=null;EX.dxInit=null;VIEW='expediente';render();window.scrollTo(0,0);return}
   /* expediente */
   if(el=C('[data-exp]')){EX.sel=el.dataset.exp;EX.form=false;render();window.scrollTo(0,0);return}
-  if(C('[data-expnew]')){EX.nuevo=true;EX.prefill={};EX.dx=[];render();return}
-  if(C('[data-expform]')){EX.form=true;EX.dx=[];render();window.scrollTo(0,0);return}
-  if(C('[data-expback]')){if(EX.regresar){EX.regresar=false;EX.nuevo=false;EX.form=false;VIEW='nuevo'}else if(EX.form)EX.form=false;else if(EX.nuevo)EX.nuevo=false;else EX.sel=null;render();window.scrollTo(0,0);return}
+  if(C('[data-expnew]')){EX.nuevo=true;EX.prefill={};EX.dx=[];EX.dxInit=null;EX.editar=null;EX.hoja=null;render();return}
+  if(el=C('[data-expcompletar]')){EX.form=true;EX.editar=el.dataset.expcompletar;EX.dxInit=null;render();window.scrollTo(0,0);return}
+  if(el=C('[data-expir]')){const pid=el.dataset.expir,pp=DB.pacientes.find(x=>x.id===pid);EX.nuevo=false;EX.sel=pid;EX.hoja=null;EX.prefill={};EX.dxInit=null;EX.editar=pp&&pp.examenes[0]&&incompleto(pp.examenes[0])?pp.examenes[0].id:null;EX.form=!!EX.editar;render();window.scrollTo(0,0);return}
+  if(el=C('[data-xprov]')){document.getElementById('x-prov').value=el.dataset.xprov;document.querySelectorAll('[data-xprov]').forEach(b=>b.setAttribute('aria-pressed',b===el));return}
+  if(C('[data-expform]')){EX.form=true;EX.editar=null;EX.dxInit=null;render();window.scrollTo(0,0);return}
+  if(C('[data-expback]')){EX.editar=null;EX.dxInit=null;EX.hoja=null;if(EX.regresar){EX.regresar=false;EX.nuevo=false;EX.form=false;VIEW='nuevo'}else if(EX.form)EX.form=false;else if(EX.nuevo)EX.nuevo=false;else EX.sel=null;render();window.scrollTo(0,0);return}
   if(el=C('[data-dx]')){const d=el.dataset.dx;EX.dx=EX.dx.includes(d)?EX.dx.filter(x=>x!==d):[...EX.dx,d];el.setAttribute('aria-pressed',EX.dx.includes(d));return}
   if(el=C('[data-expsave]')){expSave(el);return}
   /* pedidos */

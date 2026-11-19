@@ -1,0 +1,4 @@
+-- Aplicado como opt_10_expediente_completo (18 nov 2026).
+-- opt_examenes: rx_completa, tolerancia, tolerancia_nota, proveedor, actualizado. AV con refracción final en av.{od,oi}.{fl,fc}.
+-- opt_expediente_guardar: reutiliza al paciente si ya existe (nombre o teléfono) y completa la graduación indicada.
+-- opt_lista_login (opt_09): usuarios activos para elegir en la entrada.
