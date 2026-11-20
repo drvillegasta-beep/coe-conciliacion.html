@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.8 · 29 oct 2026';
+const VERSION = 'v3.9 · 20 nov 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -582,7 +582,7 @@ function filaDoc(e, editable){
   const hr = hora(e.creado);
   let ic = `<div class="ic">${ICO[td.ic]}</div>`, tit = td.n, sub = hr, der = '', extra = '';
   if(e.estado==='pendiente'){ ic = `<div class="ic gira">${ICO.reloj}</div>`; tit = 'Leyendo…'; sub = `${hr} · el sistema está reconociendo el documento`; }
-  else if(e.estado==='ok' && e.lectura?.fecha_distinta){ sub = `${hr} · <b style="color:var(--warn)">con fecha del ${fechaCorta(e.lectura.fecha_doc).slice(0,5)}${({pendiente:' · falta firma del Director', aprobada:' · validado', rechazada:' · NO aprobado'}[e.validacion]||'')}</b>`; der = `<div class="amt">${textoLectura(e)}</div>`; }
+  else if(e.estado==='ok' && e.lectura?.fecha_distinta){ sub = `${hr} · <b style="color:var(--warn)">a destiempo · del ${fechaCorta(e.lectura.fecha_doc).slice(0,5)}${({pendiente:' · falta firma del Director', aprobada:' · validado', rechazada:' · NO aprobado'}[e.validacion]||'')}</b>`; der = `<div class="amt">${textoLectura(e)}</div>`; }
   else if(e.estado==='ok'){ sub = `${hr} · ${e.lectura?.manual ? '<b style="color:var(--warn)">capturado a mano' + ({pendiente:' · falta firma del Director', aprobada:' · validado', rechazada:' · NO aprobado'}[e.validacion]||'') + '</b>' : 'reconocido'}`; der = `<div class="amt">${textoLectura(e)}</div>`; }
   else if(e.estado==='error'){ ic = `<div class="ic mal">${ICO.alerta}</div>`; tit = 'No se pudo leer'; sub = esc(e.error||''); 
     if(editable) extra = `<div class="acc"><button class="btn chico sec" data-releer="${e.id}" data-arch="${esc(e.archivo)}">Leer de nuevo</button><button class="btn chico sec" data-manual="${e.id}" data-tipo-m="${e.tipo}">Capturar a mano</button></div>`; }
@@ -1403,7 +1403,7 @@ async function panelCapturasPorValidar(){
     ${capturasPend.map(c => `<div class="pend" style="margin-top:10px">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <img data-cthumb="${esc(c.archivo)}" alt="Foto" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:#fff;flex:none;cursor:pointer">
-        <div style="min-width:0"><span class="chip ${c.lectura?.fecha_distinta?'revisar':'faltante'}">${c.lectura?.fecha_distinta?'Fecha del '+fechaCorta(c.lectura.fecha_doc).slice(0,5):'Captura a mano'}</span><br><b>${esc(nomT[c.tipo]||c.tipo)}: ${montos(c)}</b><br>
+        <div style="min-width:0"><span class="chip ${c.lectura?.fecha_distinta?'revisar':'faltante'}">${c.lectura?.fecha_distinta?'A destiempo · del '+fechaCorta(c.lectura.fecha_doc).slice(0,5):'Captura a mano'}</span><br><b>${esc(nomT[c.tipo]||c.tipo)}: ${montos(c)}</b><br>
           ${c.lectura?.fecha_distinta?`<span class="sub" style="display:block">${esc(c.motivo||'')}</span>`:''}
           <span class="sub">${esc(c.donde||'')} · capturó ${esc(cap(String(c.capturo||'').split(' ')[0]))} ${fechaCorta(c.creado)} ${hora(c.creado)}</span></div></div>
       <div class="fila" style="margin-top:8px"><button class="btn sec chico" data-cver="${esc(c.archivo)}" style="flex:1">Ver foto</button>
@@ -1825,7 +1825,7 @@ async function detalleTurno(id){
 
 async function panelAlertas(){
   const a = await rpc('con_admin_alertas', {p_limite:60});
-  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Comprobante no aprobado', fecha_distinta:'Comprobante con fecha anterior', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
+  const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Comprobante no aprobado', fecha_distinta:'Comprobante a destiempo', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
   $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
