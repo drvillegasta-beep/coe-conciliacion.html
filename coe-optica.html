@@ -526,8 +526,14 @@ function toast(m,bad){const el=document.createElement('div');el.className='toast
 function cleanErr(e){let m=(e&&(e.message||e.error_description||e.details))||String(e);m=m.replace(/^(DATOS|REGLA|PERMISO|PIN|LOGIN|SESION|ACCESO):\s*/,'');return m}
 
 /* ---------- servidor ---------- */
+function limpiaTx(v){
+  if(typeof v==='string') return v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g,'').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g,'$1');
+  if(Array.isArray(v)) return v.map(limpiaTx);
+  if(v&&typeof v==='object'&&!(v instanceof Date)){const o={};for(const k in v)o[k]=limpiaTx(v[k]);return o}
+  return v;
+}
 async function rpc(fn,args){
-  const {data,error}=await sb.rpc(fn,args);
+  const {data,error}=await sb.rpc(fn,limpiaTx(args));
   if(error){ if(/^SESION/.test(error.message||'')){salir(true)} throw error }
   return data;
 }
