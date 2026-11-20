@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.9.2 · 20 nov 2026';
+const VERSION = 'v3.10 · 20 nov 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -1839,25 +1839,79 @@ async function detalleTurno(id){
 }
 
 async function panelAlertas(){
+  let grupo = 'rev'; try{ grupo = sessionStorage.getItem('coe_alertas_grupo') || 'rev'; }catch{}
+  if(grupo === 'rev') return panelRevision();
   const a = await rpc('con_admin_alertas', {p_limite:200});
   const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Comprobante no aprobado', fecha_distinta:'Comprobante a destiempo', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
   const pri = a.filter(x => ALERTA_PRIORITARIA.has(x.tipo)), sec = a.filter(x => !ALERTA_PRIORITARIA.has(x.tipo));
-  let grupo = 'pri'; try{ grupo = sessionStorage.getItem('coe_alertas_grupo') || 'pri'; }catch{}
   const lista = xs => xs.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
       <div class="t"><b><span class="chip ${ALERTA_PRIORITARIA.has(x.tipo)?'faltante':'revisar'}">${ALERTA_PRIORITARIA.has(x.tipo)?'Prioritaria':'Operación'}</span> ${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
       <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('');
   const pinta = () => {
     const xs = grupo==='pri' ? pri : sec;
-    $('#pc').innerHTML = `<div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn chico ${grupo==='pri'?'':'sec'}" data-g="pri" style="flex:1">Prioritarias (${pri.length})</button>
-        <button class="btn chico ${grupo==='sec'?'':'sec'}" data-g="sec" style="flex:1">Operación diaria (${sec.length})</button></div>
+    $('#pc').innerHTML = `${botonesAlertas(grupo, pri.length, sec.length)}
       <p class="sub" style="margin:0 0 10px">${grupo==='pri'?'Turnos sin cerrar o sin registro, cortes que no cuadraron, fondos que no coinciden y cierres del día atrasados.':'Comprobantes a destiempo, capturas a mano, ingresos por confirmar, pagos y cortes completados tarde.'}</p>
       <div class="bloque lista">${lista(xs) || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
-    $('#pc').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { grupo = b.dataset.g; try{ sessionStorage.setItem('coe_alertas_grupo', grupo); }catch{} pinta(); });
+    conectarGrupos(g => { if(g === 'rev') return panelRevision(); grupo = g; pinta(); });
     $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
   };
   pinta();
 }
+function botonesAlertas(g, nPri, nSec){
+  const b = (k, t) => `<button class="btn chico ${g===k?'':'sec'}" data-g="${k}" style="flex:1 1 30%;min-width:0;padding:8px 6px">${t}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${b('rev','Revisión de turnos')}${b('pri','Prioritarias'+(nPri!=null?' ('+nPri+')':''))}${b('sec','Operación'+(nSec!=null?' ('+nSec+')':''))}</div>`;
+}
+function conectarGrupos(fn){
+  $('#pc').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { try{ sessionStorage.setItem('coe_alertas_grupo', b.dataset.g); }catch{} fn(b.dataset.g); });
+}
+
+// Revisión de turnos: prioritario (no cerró / no cuadró / nadie abrió), moderado (cerró tarde o tuvo anomalías), sin eventualidades
+async function panelRevision(){
+  let dias = 7, ocultar = true;
+  try{ dias = Number(sessionStorage.getItem('coe_rev_dias')) || 7; ocultar = sessionStorage.getItem('coe_rev_ocultar') !== '0'; }catch{}
+  $('#pc').innerHTML = botonesAlertas('rev') + '<div class="vacio-msg">Cargando…</div>';
+  conectarGrupos(g => g === 'rev' ? panelRevision() : panelAlertas());
+  const r = await rpc('con_revision_turnos', {p_dias: dias});
+  const ts = r.turnos || [];
+  const niv = {prioritario:{t:'Prioritario', c:'faltante', d:'No se cerró, no cuadró o nadie abrió el turno.'},
+               moderado:{t:'Moderadamente prioritario', c:'revisar', d:'Cerró tarde o tuvo alguna anomalía.'},
+               ok:{t:'Sin eventualidades', c:'cuadrado', d:'Cuadró a tiempo y sin anomalías.'}};
+  const fila = x => `<div class="item" ${x.id?`data-det="${x.id}"`:''} style="${x.revisado_en?'opacity:.6':''}">
+      <div class="t"><b>${fechaCorta(x.fecha).slice(0,5)} · ${NOMBRE_TURNO[x.turno]||esc(x.turno)} · ${esc(x.caja)}</b>
+        <span>${x.usuario?esc(x.usuario)+'. ':''}${(x.motivos||[]).map(esc).join(' · ') || 'Cuadró a tiempo.'}</span>
+        ${x.revisado_en?`<span class="sub" style="display:block">Revisado por ${esc(x.revisado_por||'')} el ${fechaCorta(x.revisado_en).slice(0,5)} ${hora(x.revisado_en)}</span>`:''}</div>
+      <div class="v" style="font-weight:400">${x.revisado_en?'<span class="chip cuadrado">Revisado</span>':`<button class="btn chico sec" data-rev="${x.id||''}" data-ral="${x.alerta||''}">Marcar revisado</button>`}</div></div>`;
+  const pinta = () => {
+    const vis = ts.filter(x => !(ocultar && x.revisado_en));
+    const sec = k => { const xs = vis.filter(x => x.nivel === k), pend = ts.filter(x => x.nivel === k && !x.revisado_en).length;
+      return `<h2 style="display:flex;align-items:center;gap:8px;margin-top:18px"><span class="chip ${niv[k].c}">${niv[k].t}</span><span class="sub" style="font-weight:400">${pend} por revisar</span></h2>
+        <p class="sub" style="margin:0 0 6px">${niv[k].d}</p>
+        ${k==='ok' && pend ? `<button class="btn chico sec" id="revtodos" style="margin-bottom:8px">Marcar todos como revisados</button>` : ''}
+        <div class="bloque lista">${xs.map(fila).join('') || '<div class="vacio-msg">Nada por revisar.</div>'}</div>`; };
+    $('#pc').innerHTML = `${botonesAlertas('rev')}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="rdias" style="width:auto">${[7,15,30].map(d=>`<option value="${d}" ${d===dias?'selected':''}>Últimos ${d} días</option>`).join('')}</select>
+        <label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:400"><input type="checkbox" id="rocu" ${ocultar?'checked':''} style="width:auto"> Ocultar revisados</label></div>
+      ${sec('prioritario')}${sec('moderado')}${sec('ok')}`;
+    conectarGrupos(g => g === 'rev' ? panelRevision() : panelAlertas());
+    $('#rdias').onchange = e => { try{ sessionStorage.setItem('coe_rev_dias', e.target.value); }catch{} panelRevision(); };
+    $('#rocu').onchange = e => { ocultar = e.target.checked; try{ sessionStorage.setItem('coe_rev_ocultar', ocultar?'1':'0'); }catch{} pinta(); };
+    $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = ev => { if(ev.target.closest('[data-rev]')) return; detalleTurno(b.dataset.det); });
+    $('#pc').querySelectorAll('[data-rev]').forEach(b => b.onclick = ev => { ev.stopPropagation(); ocupado(b, async () => {
+      if(b.dataset.rev) await rpc('con_revisar_turno', {p_turno:b.dataset.rev}); else await rpc('con_revisar_alerta', {p_alerta:b.dataset.ral});
+      const x = ts.find(y => (y.id||'') === b.dataset.rev && (y.alerta||'') === b.dataset.ral);
+      if(x){ x.revisado_en = new Date().toISOString(); x.revisado_por = S.estado.usuario.nombre; }
+      pinta();
+    }); });
+    const bt = $('#revtodos');
+    if(bt) bt.onclick = () => ocupado(bt, async () => {
+      for(const x of ts.filter(y => y.nivel==='ok' && !y.revisado_en && y.id)){ await rpc('con_revisar_turno', {p_turno:x.id}); x.revisado_en = new Date().toISOString(); x.revisado_por = S.estado.usuario.nombre; }
+      toast('Turnos sin eventualidades marcados como revisados.'); pinta();
+    });
+  };
+  pinta();
+}
+
 // Prioritarias: que no haya cierre, cortes descuadrados y cierres del día atrasados. Lo demás es operación diaria.
 const ALERTA_PRIORITARIA = new Set(['diferencia','aclaracion','fondo_apertura','turno_sin_cerrar','turno_sin_registro','cierre_automatico','cierre_pendiente','cierre_dia_tardio','ingreso_rechazado']);
 
