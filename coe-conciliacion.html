@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.9.1 · 20 nov 2026';
+const VERSION = 'v3.9.2 · 20 nov 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -264,7 +264,7 @@ function toast(msg, mal=false){
 }
 
 let sb;
-const S = { token: sessionStorage.getItem('con_token'), estado:null };
+const S = { token: sessionStorage.getItem('con_token') || (()=>{ try{ return localStorage.getItem('con_token_dir'); }catch{ return null; } })(), estado:null };
 
 async function rpc(fn, args={}){
   const {data, error} = await sb.rpc(fn, {p_token:S.token, ...args});
@@ -287,9 +287,21 @@ function acciones(html){ return `<div class="acciones"><div class="in">${html}</
 
 // ===================== Inactividad =====================
 let inact;
+// Dirección (rol admin): la sesión no se cierra por inactividad; solo se pausa y se cierra a las 18:30.
+const CIERRE_DIRECCION = [18,30];
+function msHastaCierreDireccion(){
+  const a = new Date(), c = new Date(a); c.setHours(CIERRE_DIRECCION[0], CIERRE_DIRECCION[1], 0, 0);
+  return c - a;
+}
+function esDireccion(){ return S.estado?.usuario?.rol === 'admin'; }
 function reiniciarInactividad(){
   clearTimeout(inact);
-  if(S.token) inact = setTimeout(()=>{ salir(true); toast('Se cerró la sesión por inactividad.'); }, MINUTOS_INACTIVIDAD*60000);
+  if(!S.token) return;
+  if(esDireccion()){
+    const ms = msHastaCierreDireccion();
+    if(ms > 0){ inact = setTimeout(()=>{ salir(); toast('Se cerró la sesión: son las 6:30 pm.'); }, ms); return; }
+  }
+  inact = setTimeout(()=>{ salir(true); toast('Se cerró la sesión por inactividad.'); }, MINUTOS_INACTIVIDAD*60000);
 }
 ['click','keydown','touchstart'].forEach(e => document.addEventListener(e, reiniciarInactividad, {passive:true}));
 
@@ -492,7 +504,7 @@ function vistaCredenciales(){
 }
 
 async function salir(silencioso){
-  const tok = S.token; S.token=null; S.estado=null; sessionStorage.removeItem('con_token'); clearTimeout(inact);
+  const tok = S.token; S.token=null; S.estado=null; sessionStorage.removeItem('con_token'); try{ localStorage.removeItem('con_token_dir'); }catch{} clearTimeout(inact);
   if(tok && !silencioso) try{ await sb.rpc('con_logout',{p_token:tok}); }catch{}
   document.querySelectorAll('.fondo-modal').forEach(m=>m.remove());
   vistaLogin();
@@ -503,6 +515,9 @@ async function cargar(){
   catch(e){ if(S.token) toast(e.message,true); return; }
   $('#cab').hidden = false;
   const rol = S.estado.usuario.rol;
+  // Dirección: la sesión sigue aunque se cierre la app, hasta las 18:30
+  try{ if(rol==='admin' && msHastaCierreDireccion() > 0) localStorage.setItem('con_token_dir', S.token); else localStorage.removeItem('con_token_dir'); }catch{}
+  reiniciarInactividad();
   const sup = ['admin','supervisor','contabilidad'].includes(rol);
   $('#btnPanel').hidden = !['admin','supervisor','contabilidad'].includes(rol);
   if(S.irTurno){
