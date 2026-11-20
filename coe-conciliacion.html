@@ -230,7 +230,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 // ===================== Configuración =====================
-const VERSION = 'v3.9 · 20 nov 2026';
+const VERSION = 'v3.9.1 · 20 nov 2026';
 const SUPABASE_URL  = 'https://ckjkdenwqicdjvodflba.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_6kfSTYsmi2KxAeX0AMwymQ_dWPTAxYz';
 const BUCKET = 'con-evidencias';
@@ -1824,13 +1824,27 @@ async function detalleTurno(id){
 }
 
 async function panelAlertas(){
-  const a = await rpc('con_admin_alertas', {p_limite:60});
+  const a = await rpc('con_admin_alertas', {p_limite:200});
   const nom = {prueba:'Mensaje de prueba', diferencia:'Diferencia en cierre', fondo_apertura:'Fondo no coincide', turno_sin_cerrar:'Turno sin cerrar', turno_sin_registro:'Turno sin registro', ingreso_por_confirmar:'Ingreso por confirmar', ingreso_rechazado:'Ingreso no reconocido', pago_anulado:'Pago anulado', cierre_automatico:'Cierre automático', cierre_pendiente:'Cerrado por supervisión', captura_manual:'Captura a mano por validar', captura_rechazada:'Comprobante no aprobado', fecha_distinta:'Comprobante a destiempo', cierre_tardio:'Corte completado tarde', cierre_dia_tardio:'Cierre del día tardío', aclaracion:'Aclaración de cajera'};
-  $('#pc').innerHTML = `<div class="bloque lista">${a.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
-      <div class="t"><b>${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
-      <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('') || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
-  $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+  const pri = a.filter(x => ALERTA_PRIORITARIA.has(x.tipo)), sec = a.filter(x => !ALERTA_PRIORITARIA.has(x.tipo));
+  let grupo = 'pri'; try{ grupo = sessionStorage.getItem('coe_alertas_grupo') || 'pri'; }catch{}
+  const lista = xs => xs.map(x => `<div class="item" ${x.turno_id?`data-det="${x.turno_id}"`:''}>
+      <div class="t"><b><span class="chip ${ALERTA_PRIORITARIA.has(x.tipo)?'faltante':'revisar'}">${ALERTA_PRIORITARIA.has(x.tipo)?'Prioritaria':'Operación'}</span> ${nom[x.tipo]||esc(x.tipo)}</b><span>${esc(x.mensaje)}</span></div>
+      <div class="v" style="font-weight:400;font-size:14px">${fechaCorta(x.creada)}<br>${hora(x.creada)}</div></div>`).join('');
+  const pinta = () => {
+    const xs = grupo==='pri' ? pri : sec;
+    $('#pc').innerHTML = `<div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn chico ${grupo==='pri'?'':'sec'}" data-g="pri" style="flex:1">Prioritarias (${pri.length})</button>
+        <button class="btn chico ${grupo==='sec'?'':'sec'}" data-g="sec" style="flex:1">Operación diaria (${sec.length})</button></div>
+      <p class="sub" style="margin:0 0 10px">${grupo==='pri'?'Turnos sin cerrar o sin registro, cortes que no cuadraron, fondos que no coinciden y cierres del día atrasados.':'Comprobantes a destiempo, capturas a mano, ingresos por confirmar, pagos y cortes completados tarde.'}</p>
+      <div class="bloque lista">${lista(xs) || '<div class="vacio-msg">Sin alertas.</div>'}</div>`;
+    $('#pc').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { grupo = b.dataset.g; try{ sessionStorage.setItem('coe_alertas_grupo', grupo); }catch{} pinta(); });
+    $('#pc').querySelectorAll('[data-det]').forEach(b => b.onclick = () => detalleTurno(b.dataset.det));
+  };
+  pinta();
 }
+// Prioritarias: que no haya cierre, cortes descuadrados y cierres del día atrasados. Lo demás es operación diaria.
+const ALERTA_PRIORITARIA = new Set(['diferencia','aclaracion','fondo_apertura','turno_sin_cerrar','turno_sin_registro','cierre_automatico','cierre_pendiente','cierre_dia_tardio','ingreso_rechazado']);
 
 async function panelCoberturas(){
   const [cat, us, cbs] = await Promise.all([rpc('con_admin_catalogo'), rpc('con_admin_usuarios'), rpc('con_admin_coberturas')]);
